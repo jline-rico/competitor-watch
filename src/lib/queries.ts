@@ -147,3 +147,33 @@ export async function createSpecField(
   if (error) throw error;
   return data as SpecField;
 }
+
+export async function getUnmappedSpecs() {
+  const { data: allSpecs } = await supabase.from("specs").select("field_key, field_label, product_id");
+  const { data: allFields } = await supabase.from("spec_fields").select("field_key, category");
+
+  if (!allSpecs || !allFields) return [];
+
+  const mappedKeys = new Set(allFields.map((f: { field_key: string }) => f.field_key));
+  const unmapped = allSpecs.filter((s: { field_key: string }) => !mappedKeys.has(s.field_key));
+
+  const unique = new Map<string, { field_key: string; field_label: string; count: number }>();
+  for (const s of unmapped) {
+    const existing = unique.get(s.field_key);
+    if (existing) {
+      existing.count++;
+    } else {
+      unique.set(s.field_key, { field_key: s.field_key, field_label: s.field_label, count: 1 });
+    }
+  }
+
+  return Array.from(unique.values());
+}
+
+export async function mapSpecToField(
+  field_key: string,
+  field_label: string,
+  category: string
+) {
+  return createSpecField(category, field_key, field_label);
+}
