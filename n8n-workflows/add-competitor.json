@@ -1,0 +1,17 @@
+{
+  "_doc": "Webhook workflow: triggered when user adds a new competitor from dashboard",
+  "trigger": {
+    "type": "Webhook",
+    "path": "/add-competitor",
+    "method": "POST",
+    "body": { "name": "string", "catalog_url": "string" }
+  },
+  "steps": [
+    "1. Receive name + catalog_url from dashboard",
+    "2. Puppeteer: crawl catalog page",
+    "3. Gemini: extract all product listings",
+    "4. For each product: Puppeteer crawl detail page → Gemini extract specs",
+    "5. Save all products + specs to Supabase with source_type='monitored'",
+    "6. Respond with { success: true, products_found: N }"
+  ]
+}

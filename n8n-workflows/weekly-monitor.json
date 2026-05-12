@@ -1,0 +1,131 @@
+{
+  "_doc": "Import this into n8n or recreate manually. Workflow: Weekly Competitor Monitor",
+  "nodes": [
+    {
+      "name": "Cron Trigger",
+      "type": "Schedule Trigger",
+      "config": "Every Monday at 09:00 KST"
+    },
+    {
+      "name": "Get Active Competitors",
+      "type": "HTTP Request",
+      "config": {
+        "method": "GET",
+        "url": "{{SUPABASE_URL}}/rest/v1/competitors?is_active=eq.true",
+        "headers": {
+          "apikey": "{{SUPABASE_ANON_KEY}}",
+          "Authorization": "Bearer {{SUPABASE_ANON_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "Get Existing Spec Fields",
+      "type": "HTTP Request",
+      "config": {
+        "method": "GET",
+        "url": "{{SUPABASE_URL}}/rest/v1/spec_fields?select=field_key,field_label,category",
+        "headers": {
+          "apikey": "{{SUPABASE_ANON_KEY}}",
+          "Authorization": "Bearer {{SUPABASE_ANON_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "Loop Each Competitor",
+      "type": "Split In Batches"
+    },
+    {
+      "name": "Crawl Catalog Page",
+      "type": "Code (Puppeteer)",
+      "config": {
+        "note": "Use n8n Code node with Puppeteer to render JS-heavy pages",
+        "script": "const puppeteer = require('puppeteer'); const browser = await puppeteer.launch({headless: true, args: ['--no-sandbox']}); const page = await browser.newPage(); await page.goto(item.catalog_url, {waitUntil: 'networkidle2'}); const html = await page.content(); await browser.close(); return [{json: {html, competitor: item}}];"
+      }
+    },
+    {
+      "name": "Extract Product List via Gemini",
+      "type": "HTTP Request",
+      "config": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{GEMINI_API_KEY}}",
+        "body": {
+          "contents": [
+            {
+              "parts": [
+                {
+                  "text": "다음 HTML에서 스마트홈/IoT 제품 목록을 추출해. 각 제품의 이름과 상세 페이지 URL을 JSON 배열로 반환해. [{\"name\": \"...\", \"url\": \"...\"}] 형태로만 반환."
+                },
+                {
+                  "text": "{{html}}"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Filter New Products",
+      "type": "Code",
+      "config": {
+        "note": "Compare extracted products with existing DB products, keep only new ones"
+      }
+    },
+    {
+      "name": "Crawl Each New Product Page",
+      "type": "Code (Puppeteer)",
+      "config": {
+        "note": "Same pattern as catalog crawl, but for individual product pages"
+      }
+    },
+    {
+      "name": "Extract Specs via Gemini",
+      "type": "HTTP Request",
+      "config": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{GEMINI_API_KEY}}",
+        "prompt": "너는 IoT/스마트홈 디바이스 스펙 분석 전문가야. 주어진 HTML에서 제품 스펙을 전부 추출해 JSON으로 반환해.\n\n[규칙]\n- 페이지에 명시된 모든 스펙 항목을 빠짐없이 추출 → source: 'official'\n- 제품군(category)을 반드시 다음 고정 목록 중 하나로 분류: ['카메라', '도어락', '센서', '허브', '조명', '스위치', '기타']\n- 기존 등록된 spec_fields 항목: {{existing_spec_fields}} — 이 키에 매핑 시도\n- 매핑 안 되는 새 항목은 unmapped_specs로 분리\n\n[출력 형식 - 반드시 이 JSON 구조로만 반환]\n{\"name\": \"...\", \"model\": \"...\", \"category\": \"...\", \"price\": 0, \"image_url\": \"...\", \"specs\": [{\"key\": \"...\", \"label\": \"...\", \"value\": \"...\", \"source\": \"official\"}], \"unmapped_specs\": [{\"label\": \"...\", \"value\": \"...\", \"source\": \"official\"}]}"
+      }
+    },
+    {
+      "name": "Research Missing Specs (Optional)",
+      "type": "HTTP Request",
+      "config": {
+        "note": "For products missing core specs (power, size, connectivity): use Google Custom Search API (free 100/day) to search for model name + specs, then send search results page to Gemini for extraction with source='researched' and source_url recorded. Skip if Custom Search quota exhausted.",
+        "google_custom_search_url": "https://www.googleapis.com/customsearch/v1?key={{GOOGLE_CSE_KEY}}&cx={{GOOGLE_CSE_ID}}&q={{product_model}}+스펙"
+      }
+    },
+    {
+      "name": "Save to Supabase",
+      "type": "HTTP Request",
+      "config": {
+        "method": "POST",
+        "url": "{{SUPABASE_URL}}/rest/v1/products",
+        "note": "Insert product then insert specs (both mapped and unmapped)"
+      }
+    }
+  ],
+  "setup_instructions": {
+    "n8n_env_vars": {
+      "SUPABASE_URL": "your Supabase project URL",
+      "SUPABASE_ANON_KEY": "your Supabase anon key",
+      "GEMINI_API_KEY": "Google AI Studio API key (free)",
+      "GOOGLE_CSE_KEY": "Google Custom Search API key (free, 100 queries/day)",
+      "GOOGLE_CSE_ID": "Google Custom Search Engine ID"
+    },
+    "manual_steps": [
+      "1. Create new workflow 'Weekly Competitor Monitor' in n8n UI",
+      "2. Add Schedule Trigger → Every Monday 09:00",
+      "3. Add HTTP Request → GET Supabase competitors (is_active=true)",
+      "4. Add HTTP Request → GET Supabase spec_fields (for Gemini context)",
+      "5. Add Split In Batches → iterate each competitor",
+      "6. Add Code node → Puppeteer crawl catalog page",
+      "7. Add HTTP Request → POST to Gemini for product list extraction",
+      "8. Add Code node → Filter against existing products in Supabase",
+      "9. Add Code node → For each new product: Puppeteer crawl detail page",
+      "10. Add HTTP Request → POST to Gemini for spec extraction (use full prompt above)",
+      "11. Add HTTP Request (conditional) → Google Custom Search for missing core specs → Gemini extract with source='researched'",
+      "12. Add HTTP Request → POST products and specs to Supabase"
+    ]
+  }
+}
