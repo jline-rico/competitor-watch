@@ -23,6 +23,7 @@ import { useDisplayBrands } from "@/hooks/use-display-brands";
 import { setDisplayBrand, updateProduct } from "@/lib/queries";
 import { SpecRow } from "./spec-row";
 import { OtherSpecsSection } from "./other-specs-section";
+import { ProductFilter } from "./product-filter";
 import { exportToXlsx } from "@/lib/export-xlsx";
 import type { Spec } from "@/lib/types";
 
@@ -240,9 +241,13 @@ interface Props {
   onSortChange: (field: string | null, dir: SortDir) => void;
   visibleFieldIds: string[] | null;
   onFieldsChange: (fieldIds: string[]) => void;
+  brandFilter: string[] | null;
+  countryFilter: string[] | null;
+  onBrandFilterChange: (brands: string[] | null) => void;
+  onCountryFilterChange: (countries: string[] | null) => void;
 }
 
-export function SpecTable({ category, sortField, sortDir, onSortChange, visibleFieldIds, onFieldsChange }: Props) {
+export function SpecTable({ category, sortField, sortDir, onSortChange, visibleFieldIds, onFieldsChange, brandFilter, countryFilter, onBrandFilterChange, onCountryFilterChange }: Props) {
   const { products, loading: pLoading } = useProducts(category);
   const productIds = products.map((p) => p.id);
   const { specs, loading: sLoading } = useSpecs(productIds);
@@ -271,6 +276,20 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
     }
     specsMap.get(productId)!.set(fieldKey, spec);
   }
+
+  const uniqueBrands = [...new Set(products.map((p) => brands.get(p.id) || p.competitor?.name || ""))].sort();
+  const uniqueCountries = [...new Set(products.map((p) => p.country || "").filter(Boolean))].sort();
+
+  const filteredProducts = products.filter((p) => {
+    if (brandFilter) {
+      const brandName = brands.get(p.id) || p.competitor?.name || "";
+      if (!brandFilter.includes(brandName)) return false;
+    }
+    if (countryFilter) {
+      if (!countryFilter.includes(p.country || "")) return false;
+    }
+    return true;
+  });
 
   const visibleFields = visibleFieldIds
     ? fields.filter((f) => visibleFieldIds.includes(f.id))
@@ -311,8 +330,8 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
   };
 
   const sortedProducts = (() => {
-    if (!sortField || !sortDir) return products;
-    return [...products].sort((a, b) => {
+    if (!sortField || !sortDir) return filteredProducts;
+    return [...filteredProducts].sort((a, b) => {
       let aVal: string;
       let bVal: string;
 
@@ -406,7 +425,23 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
 
   return (
     <div>
-      <div className="flex justify-end mb-3 gap-2">
+      <div className="flex justify-end mb-3 gap-2 flex-wrap">
+        {uniqueBrands.length > 1 && (
+          <ProductFilter
+            label="업체"
+            options={uniqueBrands}
+            selected={brandFilter}
+            onChange={onBrandFilterChange}
+          />
+        )}
+        {uniqueCountries.length > 1 && (
+          <ProductFilter
+            label="국가"
+            options={uniqueCountries}
+            selected={countryFilter}
+            onChange={onCountryFilterChange}
+          />
+        )}
         <button
           onClick={() => {
             navigator.clipboard.writeText(window.location.href);
