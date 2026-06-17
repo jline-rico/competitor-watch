@@ -1,15 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getCompetitors, updateCompetitor, deleteCompetitor } from "@/lib/queries";
+import { useEffect, useState, useRef } from "react";
+import {
+  getCompetitors,
+  updateCompetitor,
+  softDeleteCompetitor,
+  getDeletedCompetitors,
+  restoreCompetitor,
+  getDeletePin,
+  setDeletePin,
+  cleanupDeletedCompetitors,
+} from "@/lib/queries";
+import { COUNTRIES } from "@/lib/constants";
+import { PinModal } from "@/components/pin-modal";
 import type { Competitor } from "@/lib/types";
+
+type EditingCell = {
+  id: string;
+  field: "name" | "catalog_url" | "country";
+} | null;
+
+function timeRemaining(deletedAt: string): string {
+  const diff = new Date(deletedAt).getTime() + 24 * 60 * 60 * 1000 - Date.now();
+  if (diff <= 0) return "만료됨";
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}시간 ${minutes}분 남음`;
+}
 
 export function CompetitorList() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [deleted, setDeleted] = useState<Competitor[]>([]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [editing, setEditing] = useState<EditingCell>(null);
+  const [editValue, setEditValue] = useState("");
+  const [pinModal, setPinModal] = useState<{ mode: "verify" | "setup"; targetId: string } | null>(null);
+  const [savedPin, setSavedPin] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getCompetitors().then(setCompetitors);
+    cleanupDeletedCompetitors().then(() => {
+      getCompetitors().then(setCompetitors);
+      getDeletedCompetitors().then(setDeleted);
+    });
+    getDeletePin().then(setSavedPin);
   }, []);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const handleToggle = async (id: string, current: boolean) => {
     await updateCompetitor(id, { is_active: !current });
@@ -18,47 +65,354 @@ export function CompetitorList() {
     );
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("이 경쟁사와 관련 제품/스펙이 모두 삭제됩니다. 계속하시겠습니까?")) return;
-    await deleteCompetitor(id);
-    setCompetitors((prev) => prev.filter((c) => c.id !== id));
+  const handleDeleteClick = (id: string) => {
+    if (!savedPin) {
+      setPinModal({ mode: "setup", targetId: id });
+    } else {
+      setPinModal({ mode: "verify", targetId: id });
+    }
   };
 
-  if (competitors.length === 0) {
-    return <p className="text-sm text-gray-400">등록된 경쟁사가 없습니다.</p>;
+  const handlePinVerified = async () => {
+    if (!pinModal) return;
+    const targetId = pinModal.targetId;
+    setPinModal(null);
+    await softDeleteCompetitor(targetId);
+    const removed = competitors.find((c) => c.id === targetId);
+    setCompetitors((prev) => prev.filter((c) => c.id !== targetId));
+    if (removed) {
+      const withDeletedAt = { ...removed, deleted_at: new Date().toISOString() };
+      setDeleted((prev) => [withDeletedAt, ...prev]);
+    }
+    setToast("경쟁사가 삭제되었습니다. 24시간 이내 복원 가능합니다.");
+  };
+
+  const handleRestore = async (id: string) => {
+    await restoreCompetitor(id);
+    const restored = deleted.find((c) => c.id === id);
+    setDeleted((prev) => prev.filter((c) => c.id !== id));
+    if (restored) {
+      setCompetitors((prev) =>
+        [...prev, { ...restored, deleted_at: null }].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )
+      );
+    }
+    setToast("경쟁사가 복원되었습니다.");
+  };
+
+  const startEdit = (id: string, field: "name" | "catalog_url" | "country", currentValue: string) => {
+    setEditing({ id, field });
+    setEditValue(currentValue || "");
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setEditValue("");
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const { id, field } = editing;
+    const trimmed = editValue.trim();
+    if (field === "name" && !trimmed) return;
+    await updateCompetitor(id, { [field]: trimmed || null });
+    setCompetitors((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: trimmed || null } : c))
+    );
+    cancelEdit();
+  };
+
+  const grouped = new Map<string, Competitor[]>();
+  for (const c of competitors) {
+    const country = c.country || "미분류";
+    if (!grouped.has(country)) grouped.set(country, []);
+    grouped.get(country)!.push(c);
+  }
+  const sortedCountries = Array.from(grouped.keys()).sort((a, b) =>
+    a === "미분류" ? 1 : b === "미분류" ? -1 : a.localeCompare(b, "ko")
+  );
+
+  if (competitors.length === 0 && deleted.length === 0) {
+    return (
+      <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+        등록된 경쟁사가 없습니다.
+      </p>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {competitors.map((c) => (
+    <>
+      {/* Toast */}
+      {toast && (
         <div
-          key={c.id}
-          className="flex items-center justify-between rounded-lg border bg-white px-4 py-3"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg"
+          style={{ background: "var(--accent)" }}
         >
-          <div>
-            <p className="font-medium">{c.name}</p>
-            <p className="text-xs text-gray-400 truncate max-w-md">{c.catalog_url}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => handleToggle(c.id, c.is_active)}
-              className={`rounded px-2 py-1 text-xs font-medium ${
-                c.is_active
-                  ? "bg-green-100 text-green-700"
-                  : "bg-gray-100 text-gray-500"
-              }`}
-            >
-              {c.is_active ? "활성" : "비활성"}
-            </button>
-            <button
-              onClick={() => handleDelete(c.id)}
-              className="text-xs text-red-400 hover:text-red-600"
-            >
-              삭제
-            </button>
-          </div>
+          {toast}
         </div>
-      ))}
-    </div>
+      )}
+
+      {/* PIN Modal */}
+      {pinModal && (
+        <PinModal
+          mode={pinModal.mode}
+          verifyPin={(pin) => pin === savedPin}
+          onVerified={handlePinVerified}
+          onCancel={() => setPinModal(null)}
+          onSetPin={(pin) => {
+            setDeletePin(pin);
+            setSavedPin(pin);
+          }}
+        />
+      )}
+
+      {/* Active competitors table */}
+      {competitors.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                <th className="px-3 py-2.5 text-left font-medium" style={{ color: "var(--text-tertiary)", width: "100px" }}>
+                  국가
+                </th>
+                <th className="px-3 py-2.5 text-left font-medium" style={{ color: "var(--text-tertiary)" }}>
+                  경쟁사명
+                </th>
+                <th className="px-3 py-2.5 text-left font-medium" style={{ color: "var(--text-tertiary)" }}>
+                  카탈로그 URL
+                </th>
+                <th className="px-3 py-2.5 text-center font-medium" style={{ color: "var(--text-tertiary)", width: "80px" }}>
+                  상태
+                </th>
+                <th className="px-3 py-2.5 text-center font-medium" style={{ color: "var(--text-tertiary)", width: "60px" }}>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedCountries.map((country) => {
+                const items = grouped.get(country)!;
+                return items.map((c, i) => (
+                  <tr
+                    key={c.id}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {/* Country cell — first row only, with inline editing */}
+                    {i === 0 && (
+                      <td
+                        rowSpan={items.length}
+                        className="px-3 py-2.5 align-top font-medium"
+                        style={{
+                          color: "var(--text-primary)",
+                          borderRight: "1px solid var(--border)",
+                          background: "var(--bg-warm)",
+                        }}
+                      >
+                        {editing?.id === c.id && editing.field === "country" ? (
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveEdit();
+                                if (e.key === "Escape") cancelEdit();
+                              }}
+                              className="rounded px-1 py-0.5 text-sm"
+                              style={{
+                                background: "var(--surface)",
+                                border: "1px solid var(--accent)",
+                                color: "var(--text-primary)",
+                                outline: "none",
+                              }}
+                            >
+                              <option value="">미분류</option>
+                              {COUNTRIES.map((ct) => (
+                                <option key={ct} value={ct}>{ct}</option>
+                              ))}
+                            </select>
+                            <button onClick={saveEdit} className="text-xs" style={{ color: "var(--success)" }}>✓</button>
+                            <button onClick={cancelEdit} className="text-xs" style={{ color: "var(--text-tertiary)" }}>✕</button>
+                          </div>
+                        ) : (
+                          <span
+                            className="cursor-pointer"
+                            onClick={() => startEdit(c.id, "country", c.country || "")}
+                            title="클릭하여 수정"
+                          >
+                            {country}
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Name cell — inline editing */}
+                    <td className="px-3 py-2.5">
+                      {editing?.id === c.id && editing.field === "name" ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEdit();
+                              if (e.key === "Escape") cancelEdit();
+                            }}
+                            className="w-full rounded px-2 py-0.5 text-sm font-medium"
+                            style={{
+                              background: "var(--surface)",
+                              border: "1px solid var(--accent)",
+                              color: "var(--text-primary)",
+                              outline: "none",
+                            }}
+                          />
+                          <button onClick={saveEdit} className="text-xs shrink-0" style={{ color: "var(--success)" }}>✓</button>
+                          <button onClick={cancelEdit} className="text-xs shrink-0" style={{ color: "var(--text-tertiary)" }}>✕</button>
+                        </div>
+                      ) : (
+                        <span
+                          className="cursor-pointer font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                          onClick={() => startEdit(c.id, "name", c.name)}
+                          title="클릭하여 수정"
+                        >
+                          {c.name}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* URL cell — inline editing */}
+                    <td className="px-3 py-2.5">
+                      {editing?.id === c.id && editing.field === "catalog_url" ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEdit();
+                              if (e.key === "Escape") cancelEdit();
+                            }}
+                            className="w-full rounded px-2 py-0.5 text-xs font-mono"
+                            style={{
+                              background: "var(--surface)",
+                              border: "1px solid var(--accent)",
+                              color: "var(--text-primary)",
+                              outline: "none",
+                            }}
+                          />
+                          <button onClick={saveEdit} className="text-xs shrink-0" style={{ color: "var(--success)" }}>✓</button>
+                          <button onClick={cancelEdit} className="text-xs shrink-0" style={{ color: "var(--text-tertiary)" }}>✕</button>
+                        </div>
+                      ) : (
+                        <a
+                          href={c.catalog_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate block max-w-xs font-mono-data text-xs transition-colors"
+                          style={{ color: "var(--text-tertiary)" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            startEdit(c.id, "catalog_url", c.catalog_url);
+                          }}
+                          title="클릭하여 수정"
+                        >
+                          {c.catalog_url}
+                        </a>
+                      )}
+                    </td>
+
+                    {/* Status toggle */}
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => handleToggle(c.id, c.is_active)}
+                        className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors"
+                        style={{
+                          background: c.is_active ? "var(--success-light)" : "var(--bg-warm)",
+                          color: c.is_active ? "var(--success)" : "var(--text-tertiary)",
+                        }}
+                      >
+                        {c.is_active ? "활성" : "비활성"}
+                      </button>
+                    </td>
+
+                    {/* Delete button */}
+                    <td className="px-3 py-2.5 text-center">
+                      <button
+                        onClick={() => handleDeleteClick(c.id)}
+                        className="text-xs transition-colors"
+                        style={{ color: "var(--text-tertiary)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--danger)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+                      >
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                ));
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Recently deleted section */}
+      {deleted.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowDeleted(!showDeleted)}
+            className="flex items-center gap-1.5 text-xs font-medium transition-colors"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            <span style={{ transform: showDeleted ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s", display: "inline-block" }}>
+              ▶
+            </span>
+            최근 삭제 ({deleted.length})
+          </button>
+
+          {showDeleted && (
+            <div
+              className="mt-2 rounded-lg overflow-hidden"
+              style={{ border: "1px solid var(--border)", background: "var(--bg-warm)" }}
+            >
+              {deleted.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between px-4 py-2.5 text-sm"
+                  style={{ borderBottom: "1px solid var(--border)" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      {c.name}
+                    </span>
+                    <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                      {c.deleted_at ? timeRemaining(c.deleted_at) : ""}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleRestore(c.id)}
+                    className="rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
+                    style={{
+                      background: "var(--surface)",
+                      color: "var(--accent)",
+                      border: "1px solid var(--border)",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                  >
+                    복원
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
