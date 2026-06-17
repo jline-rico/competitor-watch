@@ -39,45 +39,49 @@ export function AddUrlModal({ open, onClose }: Props) {
     setShowSuggestions(false);
   };
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSubmit = async () => {
     if (!name.trim() || !url.trim()) return;
     setLoading(true);
+    setError(null);
 
     try {
       if (mode === "competitor") {
-        await createCompetitor(name.trim(), url.trim(), country || undefined);
-        const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL;
-        if (webhookUrl) {
-          await fetch(`${webhookUrl}/add-competitor`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: name.trim(),
-              catalog_url: url.trim(),
-              country: country || null,
-            }),
-          }).catch(() => {});
-        }
+        const created = await createCompetitor(name.trim(), url.trim(), country || undefined);
+        // Trigger immediate crawl for this competitor via Worker
+        fetch("/api/crawl-single", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            competitor_name: name.trim(),
+            product_url: url.trim(),
+            country: country || null,
+            competitor_id: created.id,
+          }),
+        }).catch(() => {});
         setSubmittedMode("competitor");
         setSubmitted(true);
       } else {
-        const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_BASE_URL;
-        if (webhookUrl) {
-          await fetch(`${webhookUrl}/add-product`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              competitor_name: name.trim(),
-              product_url: url.trim(),
-              country: country || null,
-            }),
-          }).catch(() => {});
+        const res = await fetch("/api/crawl-single", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            competitor_name: name.trim(),
+            product_url: url.trim(),
+            country: country || null,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok && data.error) {
+          setError(data.error);
+          return;
         }
         setSubmittedMode("product");
         setSubmitted(true);
       }
     } catch {
-      // errors just stop loading
+      setError("요청 처리 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -88,6 +92,7 @@ export function AddUrlModal({ open, onClose }: Props) {
     setUrl("");
     setCountry("");
     setSubmitted(false);
+    setError(null);
     setMode("competitor");
     setShowSuggestions(false);
     onClose();
@@ -152,8 +157,8 @@ export function AddUrlModal({ open, onClose }: Props) {
                 style={{ color: "var(--text-secondary)" }}
               >
                 {submittedMode === "competitor"
-                  ? "크롤링이 백그라운드에서 진행됩니다.\n1-2분 후 조사 대상 목록에 제품이 표시됩니다."
-                  : "스펙 수집이 진행 중입니다.\n1-2분 후 조사 대상 목록에 표시됩니다."}
+                  ? "경쟁사가 등록되었습니다.\n매일 자동으로 신제품을 감지합니다."
+                  : "스펙 수집이 완료되었습니다.\n조사 대상 목록에서 확인하세요."}
               </p>
               <button
                 onClick={handleClose}
@@ -315,6 +320,12 @@ export function AddUrlModal({ open, onClose }: Props) {
                   ))}
                 </select>
               </div>
+
+              {error && (
+                <p className="mt-2 text-xs" style={{ color: "var(--danger, #dc2626)" }}>
+                  {error}
+                </p>
+              )}
 
               <button
                 onClick={handleSubmit}

@@ -184,6 +184,100 @@ async function processCompetitor(
   return log;
 }
 
+export async function runSingle(
+  env: Env,
+  params: {
+    competitor_name: string;
+    product_url: string;
+    country?: string | null;
+    competitor_id?: string | null;
+  },
+): Promise<{ ok: boolean; product_id?: string; specs_count?: number; specs_source?: string; error?: string }> {
+  const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+
+  try {
+    const detailResult = await withRetry(() =>
+      crawlPage(env.BROWSER, params.product_url, { waitFor: 5000 }),
+    );
+
+    if (!detailResult.ok) {
+      return { ok: false, error: `Crawl failed: ${detailResult.error}` };
+    }
+
+    const detailTrimmed = trimHtml(detailResult.html);
+    let extracted = await withRetry(() =>
+      extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed),
+    );
+    let specsSource = "official_text";
+
+    if (!extracted || extracted.specs.length < SPEC_THRESHOLD) {
+      const ssResult = await crawlPage(
+        env.BROWSER,
+        params.product_url,
+        { waitFor: 3000 },
+        true,
+      );
+
+      if (ssResult.ok && ssResult.screenshot) {
+        const visionResult = await withRetry(() =>
+          extractSpecsFromImage(env.GEMINI_API_KEY, ssResult.screenshot!),
+        );
+        if (visionResult && visionResult.specs.length > (extracted?.specs.length || 0)) {
+          extracted = visionResult;
+          specsSource = "official_image";
+        }
+      }
+    }
+
+    if (!extracted) {
+      return { ok: false, error: "Failed to extract specs from page" };
+    }
+
+    let competitorId = params.competitor_id;
+    if (!competitorId) {
+      const competitors = await db.getActiveCompetitors();
+      const match = competitors.find(
+        (c) => c.name.toLowerCase() === params.competitor_name.toLowerCase(),
+      );
+      competitorId = match?.id || null;
+    }
+
+    if (!competitorId) {
+      return { ok: false, error: `Competitor "${params.competitor_name}" not found` };
+    }
+
+    const [saved] = await db.insertProduct({
+      name: extracted.name || params.competitor_name,
+      model_number: extracted.model || null,
+      category: extracted.category || "기타",
+      product_url: params.product_url,
+      image_url: extracted.image_url || null,
+      price: extracted.price || null,
+      currency: extracted.currency || (params.country === "한국" ? "KRW" : "USD"),
+      country: params.country || null,
+      competitor_id: competitorId,
+      source_type: "single",
+      specs_source: specsSource,
+    });
+
+    if (saved && extracted.specs.length > 0) {
+      const specs = extracted.specs.map((s) => ({
+        product_id: saved.id,
+        field_key: s.key || s.label.toLowerCase().replace(/\s+/g, "_"),
+        field_label: s.label,
+        value: String(s.value),
+        source: "official",
+      }));
+      await db.insertSpecs(specs);
+      return { ok: true, product_id: saved.id, specs_count: specs.length, specs_source: specsSource };
+    }
+
+    return { ok: true, product_id: saved?.id, specs_count: 0, specs_source: specsSource };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function runPipeline(
   env: Env,
 ): Promise<{ logs: CrawlLog[] }> {
