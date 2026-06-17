@@ -189,10 +189,12 @@ export async function runPipeline(
 ): Promise<{ logs: CrawlLog[] }> {
   const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
   const competitors = await db.getActiveCompetitors();
+  const doneThisWeek = new Set(await db.getSuccessfulThisWeek());
 
   const logs: CrawlLog[] = [];
 
   for (const competitor of competitors) {
+    if (doneThisWeek.has(competitor.id)) continue;
     const log = await processCompetitor(env, db, competitor);
     await db.insertCrawlLog(log);
     logs.push(log);

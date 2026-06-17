@@ -92,4 +92,22 @@ export class SupabaseClient {
       body: JSON.stringify(log),
     });
   }
+
+  async getSuccessfulThisWeek(): Promise<string[]> {
+    const monday = getThisMonday();
+    const rows = await this.request(
+      `crawl_logs?run_at=gte.${monday}&catalog_crawl_ok=eq.true&error_message=is.null&select=competitor_id`,
+    ) as { competitor_id: string }[];
+    return rows.map((r) => r.competitor_id);
+  }
+}
+
+function getThisMonday(): string {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? 6 : day - 1;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() - diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday.toISOString();
 }
