@@ -17,7 +17,10 @@ export function Nav() {
       className="sticky top-0 z-40"
       style={{ background: "var(--bg)" }}
     >
-      <div className="mx-auto flex max-w-6xl items-end justify-between px-5 pt-3">
+      <div
+        className="mx-auto flex max-w-6xl items-end justify-between px-5 pt-3"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
         <Link href="/" className="flex items-center gap-2.5 pb-3">
           <span
             className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white"
@@ -31,48 +34,25 @@ export function Nav() {
           </span>
         </Link>
 
-        <nav className="flex items-end">
+        <nav className="flex items-end gap-0">
           {links.map((link) => {
             const isActive = pathname === link.href;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className="relative text-sm font-medium"
+                className="relative text-sm font-medium transition-colors"
                 style={{
-                  padding: "8px 20px 10px",
+                  padding: "8px 20px",
                   marginBottom: "-1px",
-                  borderTopLeftRadius: "8px",
-                  borderTopRightRadius: "8px",
-                  borderBottomLeftRadius: "0",
-                  borderBottomRightRadius: "0",
                   color: isActive ? "var(--text-primary)" : "var(--text-tertiary)",
-                  backgroundColor: isActive ? "var(--surface)" : "transparent",
-                  borderTopWidth: "1px",
-                  borderTopStyle: "solid",
-                  borderTopColor: isActive ? "var(--border)" : "transparent",
-                  borderLeftWidth: "1px",
-                  borderLeftStyle: "solid",
-                  borderLeftColor: isActive ? "var(--border)" : "transparent",
-                  borderRightWidth: "1px",
-                  borderRightStyle: "solid",
-                  borderRightColor: isActive ? "var(--border)" : "transparent",
-                  borderBottomWidth: "1px",
-                  borderBottomStyle: "solid",
-                  borderBottomColor: isActive ? "var(--surface)" : "transparent",
-                  transition: "color 0.15s, background-color 0.15s",
+                  borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                    e.currentTarget.style.backgroundColor = "var(--surface-hover)";
-                  }
+                  if (!isActive) e.currentTarget.style.color = "var(--text-secondary)";
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = "var(--text-tertiary)";
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }
+                  if (!isActive) e.currentTarget.style.color = "var(--text-tertiary)";
                 }}
               >
                 {link.label}
@@ -81,7 +61,6 @@ export function Nav() {
           })}
         </nav>
       </div>
-      <div style={{ height: "1px", backgroundColor: "var(--border)" }} />
     </header>
   );
 }
