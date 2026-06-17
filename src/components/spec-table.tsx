@@ -494,28 +494,14 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
             </tr>
             <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
               <th className="w-8" />
-              <th className="px-4 py-2 text-left text-sm font-medium" style={{ color: "var(--text-tertiary)" }} />
+              <th
+                className="px-4 py-2 text-left text-xs font-medium"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                제품명
+              </th>
               {sortedProducts.map((p) => (
                 <th key={p.id} className="px-4 py-2 text-left">
-                  <div
-                    className="text-xs transition-colors"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    <EditableBrandName
-                      productId={p.id}
-                      currentName={p.competitor.name}
-                      displayBrand={brands.get(p.id)}
-                      onSave={(brand) => {
-                        setBrands((prev) => {
-                          const next = new Map(prev);
-                          if (brand === p.competitor.name) next.delete(p.id);
-                          else next.set(p.id, brand);
-                          return next;
-                        });
-                      }}
-                    />
-                    <SortIndicator field="__competitor__" />
-                  </div>
                   <p
                     className="text-sm font-semibold cursor-pointer select-none transition-colors"
                     style={{ color: "var(--text-primary)" }}
@@ -531,6 +517,37 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
             </tr>
           </thead>
           <tbody>
+            {/* Fixed row: 업체명 */}
+            <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
+              <td className="w-8" />
+              <td
+                className="px-4 py-3 text-sm font-medium whitespace-nowrap cursor-pointer select-none"
+                style={{ color: "var(--text-secondary)" }}
+                onClick={() => handleHeaderClick("__competitor__")}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
+              >
+                업체명
+                <SortIndicator field="__competitor__" />
+              </td>
+              {sortedProducts.map((p) => (
+                <td key={p.id} className="px-4 py-3 text-sm">
+                  <EditableBrandName
+                    productId={p.id}
+                    currentName={p.competitor.name}
+                    displayBrand={brands.get(p.id)}
+                    onSave={(brand) => {
+                      setBrands((prev) => {
+                        const next = new Map(prev);
+                        if (brand === p.competitor.name) next.delete(p.id);
+                        else next.set(p.id, brand);
+                        return next;
+                      });
+                    }}
+                  />
+                </td>
+              ))}
+            </tr>
             {/* Fixed row: 판매가격 */}
             <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
               <td className="w-8" />
