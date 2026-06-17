@@ -230,23 +230,27 @@ function EditableProductImage({
   );
 }
 
+export type SortDir = "asc" | "desc" | null;
+
 interface Props {
   category: string;
+  sortField: string | null;
+  sortDir: SortDir;
+  onSortChange: (field: string | null, dir: SortDir) => void;
+  visibleFieldIds: string[] | null;
+  onFieldsChange: (fieldIds: string[]) => void;
 }
 
-type SortDir = "asc" | "desc" | null;
-
-export function SpecTable({ category }: Props) {
+export function SpecTable({ category, sortField, sortDir, onSortChange, visibleFieldIds, onFieldsChange }: Props) {
   const { products, loading: pLoading } = useProducts(category);
   const productIds = products.map((p) => p.id);
   const { specs, loading: sLoading } = useSpecs(productIds);
   const { brands, setBrands, loading: bLoading } = useDisplayBrands(productIds);
   const { fields, loading: fLoading, reorder } = useSpecFields(category);
 
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>(null);
   const [localSpecs, setLocalSpecs] = useState<Map<string, Spec>>(new Map());
   const [localImages, setLocalImages] = useState<Map<string, string | null>>(new Map());
+  const [copied, setCopied] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: { distance: 5 },
@@ -267,7 +271,9 @@ export function SpecTable({ category }: Props) {
     specsMap.get(productId)!.set(fieldKey, spec);
   }
 
-  const visibleFields = fields.filter((f) => f.is_visible);
+  const visibleFields = visibleFieldIds
+    ? fields.filter((f) => visibleFieldIds.includes(f.id))
+    : fields.filter((f) => f.is_visible);
   const commonFieldKeys = new Set(visibleFields.map((f) => f.field_key));
 
   const handleSpecUpdated = useCallback(
@@ -292,14 +298,10 @@ export function SpecTable({ category }: Props) {
 
   const handleHeaderClick = (fieldKey: string) => {
     if (sortField === fieldKey) {
-      if (sortDir === "asc") setSortDir("desc");
-      else {
-        setSortField(null);
-        setSortDir(null);
-      }
+      if (sortDir === "asc") onSortChange(fieldKey, "desc");
+      else onSortChange(null, null);
     } else {
-      setSortField(fieldKey);
-      setSortDir("asc");
+      onSortChange(fieldKey, "asc");
     }
   };
 
@@ -377,7 +379,36 @@ export function SpecTable({ category }: Props) {
 
   return (
     <div>
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end mb-3 gap-2">
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(window.location.href);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
+          style={{
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border)",
+            background: copied ? "var(--success-light, rgba(34,197,94,0.1))" : "var(--surface)",
+            color: copied ? "var(--success, #22c55e)" : "var(--text-secondary)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+          onMouseEnter={(e) => {
+            if (!copied) {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!copied) {
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }
+          }}
+        >
+          {copied ? "복사됨 ✓" : "링크 복사 🔗"}
+        </button>
         <button
           onClick={() => exportToXlsx(sortedProducts, specsMap, fields, category)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
@@ -511,19 +542,31 @@ export function SpecTable({ category }: Props) {
                 </td>
               ))}
             </tr>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={visibleFields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-                {visibleFields.map((field) => (
-                  <SpecRow
-                    key={field.id}
-                    field={field}
-                    products={sortedProducts}
-                    specsMap={specsMap}
-                    onSpecUpdated={handleSpecUpdated}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
+            {visibleFieldIds ? (
+              visibleFields.map((field) => (
+                <SpecRow
+                  key={field.id}
+                  field={field}
+                  products={sortedProducts}
+                  specsMap={specsMap}
+                  onSpecUpdated={handleSpecUpdated}
+                />
+              ))
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={visibleFields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                  {visibleFields.map((field) => (
+                    <SpecRow
+                      key={field.id}
+                      field={field}
+                      products={sortedProducts}
+                      specsMap={specsMap}
+                      onSpecUpdated={handleSpecUpdated}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
             <OtherSpecsSection
               products={sortedProducts}
               specsMap={specsMap}
