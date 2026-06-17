@@ -71,29 +71,36 @@ function SortableField({
           ({productCount}개 제품)
         </span>
       </div>
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => { if (!field.is_visible) onToggle(field.id, true); }}
-          className="text-xs px-2 py-0.5 rounded transition-colors"
-          style={{
-            color: field.is_visible ? "var(--success)" : "var(--text-tertiary)",
-            background: field.is_visible ? "rgba(34,197,94,0.1)" : "transparent",
-            fontWeight: field.is_visible ? 600 : 400,
-          }}
-        >
-          표시
-        </button>
-        <button
-          onClick={() => { if (field.is_visible) onToggle(field.id, false); }}
-          className="text-xs px-2 py-0.5 rounded transition-colors"
-          style={{
-            color: !field.is_visible ? "var(--warning, #d97706)" : "var(--text-tertiary)",
-            background: !field.is_visible ? "rgba(217,119,6,0.1)" : "transparent",
-            fontWeight: !field.is_visible ? 600 : 400,
-          }}
-        >
-          제외
-        </button>
+      <div className="flex items-center gap-1.5">
+        {field.is_visible ? (
+          <button
+            onClick={() => onToggle(field.id, false)}
+            className="text-xs px-2 py-0.5 rounded transition-colors"
+            style={{ color: "var(--warning, #d97706)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(217,119,6,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            제외
+          </button>
+        ) : (
+          <button
+            onClick={() => onToggle(field.id, true)}
+            className="text-xs px-2 py-0.5 rounded transition-colors"
+            style={{ color: "var(--success)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(34,197,94,0.1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            표시
+          </button>
+        )}
         <button
           onClick={() => {
             if (confirm(`"${field.field_label}" 항목을 삭제하시겠습니까?\n매핑이 완전히 제거되며, 기타 항목으로 돌아갑니다.`)) {
