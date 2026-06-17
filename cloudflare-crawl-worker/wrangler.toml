@@ -1,0 +1,10 @@
+name = "crawl-worker"
+main = "src/index.ts"
+compatibility_date = "2025-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[browser]
+binding = "BROWSER"
+
+# Secrets are set via `wrangler secret put <NAME>`:
+# AUTH_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY, GEMINI_API_KEY
