@@ -21,6 +21,7 @@ export interface Product {
   image_url: string | null;
   price: number | null;
   country: string | null;
+  currency: string;
   is_new: boolean;
   source_type: "monitored" | "one_time";
   discovered_at: string;

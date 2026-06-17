@@ -147,7 +147,7 @@ export async function getSpecsForProducts(productIds: string[]) {
 
 export async function updateProduct(
   id: string,
-  fields: Partial<{ price: number | null; name: string; model_number: string | null; category: string; image_url: string | null }>
+  fields: Partial<{ price: number | null; name: string; model_number: string | null; category: string; image_url: string | null; currency: string }>
 ) {
   const { error } = await supabase.from("products").update(fields).eq("id", id);
   if (error) throw error;
