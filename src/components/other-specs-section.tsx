@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useDraggable } from "@dnd-kit/core";
 import { updateSpec, createSpec, renameSpecsByFieldKey } from "@/lib/queries";
 import type { Product, Spec } from "@/lib/types";
 
@@ -275,6 +276,66 @@ function EditableOtherLabel({
   );
 }
 
+function DraggableOtherRow({
+  fieldKey,
+  label,
+  products,
+  specs,
+  onLabelRenamed,
+  onSpecUpdated,
+  draggable,
+}: {
+  fieldKey: string;
+  label: string;
+  products: Product[];
+  specs: Map<string, Spec>;
+  onLabelRenamed: (fieldKey: string, newLabel: string) => void;
+  onSpecUpdated: (productId: string, fieldKey: string, spec: Spec) => void;
+  draggable: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `other::${fieldKey}`,
+    data: { fieldKey, fieldLabel: label },
+    disabled: !draggable,
+  });
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.5 : 1 }
+    : {};
+
+  return (
+    <tr ref={setNodeRef} style={{ ...style, borderBottom: "1px solid var(--border)" }}>
+      <td
+        className="w-8 px-2"
+        style={{ color: draggable ? "var(--text-tertiary)" : "transparent", cursor: draggable ? "grab" : "default" }}
+        {...(draggable ? { ...attributes, ...listeners } : {})}
+      >
+        {draggable ? "⠿" : ""}
+      </td>
+      <td
+        className="px-4 py-3 text-sm font-medium whitespace-nowrap"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        <EditableOtherLabel fieldKey={fieldKey} label={label} onRenamed={onLabelRenamed} />
+      </td>
+      {products.map((product) => {
+        const spec = specs.get(product.id);
+        return (
+          <td key={product.id} className="px-4 py-3 text-sm">
+            <EditableCell
+              spec={spec}
+              productId={product.id}
+              fieldKey={fieldKey}
+              fieldLabel={label}
+              onSpecUpdated={onSpecUpdated}
+            />
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
 interface Props {
   products: Product[];
   specsMap: Map<string, Map<string, Spec>>;
@@ -328,33 +389,16 @@ export function OtherSpecsSection({ products, specsMap, commonFieldKeys, onSpecU
         </tr>
       )}
       {Array.from(otherSpecs.entries()).map(([key, { label, specs }]) => (
-        <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
-          <td className="w-8" />
-          <td
-            className="px-4 py-3 text-sm font-medium whitespace-nowrap"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <EditableOtherLabel
-              fieldKey={key}
-              label={label}
-              onRenamed={handleLabelRenamed}
-            />
-          </td>
-          {products.map((product) => {
-            const spec = specs.get(product.id);
-            return (
-              <td key={product.id} className="px-4 py-3 text-sm">
-                <EditableCell
-                  spec={spec}
-                  productId={product.id}
-                  fieldKey={key}
-                  fieldLabel={label}
-                  onSpecUpdated={handleSpecUpdated}
-                />
-              </td>
-            );
-          })}
-        </tr>
+        <DraggableOtherRow
+          key={key}
+          fieldKey={key}
+          label={label}
+          products={products}
+          specs={specs}
+          onLabelRenamed={handleLabelRenamed}
+          onSpecUpdated={handleSpecUpdated}
+          draggable={hideHeader ?? false}
+        />
       ))}
     </>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSpecsForProducts } from "@/lib/queries";
+import { getSpecsForProducts, DISPLAY_BRAND_KEY } from "@/lib/queries";
 import type { Spec } from "@/lib/types";
 
 export function useSpecs(productIds: string[]) {
@@ -16,7 +16,7 @@ export function useSpecs(productIds: string[]) {
     }
     setLoading(true);
     getSpecsForProducts(productIds)
-      .then(setSpecs)
+      .then((data) => setSpecs(data.filter((s) => s.field_key !== DISPLAY_BRAND_KEY)))
       .finally(() => setLoading(false));
   }, [productIds.join(",")]);
 

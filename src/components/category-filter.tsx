@@ -12,7 +12,14 @@ export function CategoryFilter({ selected, onChange }: Props) {
     <select
       value={selected}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border bg-white px-3 py-2 text-sm"
+      className="px-3 py-2 text-sm font-medium cursor-pointer"
+      style={{
+        borderRadius: "var(--radius-sm)",
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        color: "var(--text-primary)",
+        boxShadow: "var(--shadow-sm)",
+      }}
     >
       {CATEGORIES.map((cat) => (
         <option key={cat} value={cat}>

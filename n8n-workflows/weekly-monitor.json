@@ -1,131 +1,260 @@
 {
-  "_doc": "Import this into n8n or recreate manually. Workflow: Weekly Competitor Monitor",
+  "name": "CompetitorWatch - Weekly Monitor",
+  "active": true,
   "nodes": [
     {
-      "name": "Cron Trigger",
-      "type": "Schedule Trigger",
-      "config": "Every Monday at 09:00 KST"
-    },
-    {
-      "name": "Get Active Competitors",
-      "type": "HTTP Request",
-      "config": {
-        "method": "GET",
-        "url": "{{SUPABASE_URL}}/rest/v1/competitors?is_active=eq.true",
-        "headers": {
-          "apikey": "{{SUPABASE_ANON_KEY}}",
-          "Authorization": "Bearer {{SUPABASE_ANON_KEY}}"
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1" }]
         }
-      }
+      },
+      "id": "cron-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
     },
     {
-      "name": "Get Existing Spec Fields",
-      "type": "HTTP Request",
-      "config": {
+      "parameters": {
         "method": "GET",
-        "url": "{{SUPABASE_URL}}/rest/v1/spec_fields?select=field_key,field_label,category",
-        "headers": {
-          "apikey": "{{SUPABASE_ANON_KEY}}",
-          "Authorization": "Bearer {{SUPABASE_ANON_KEY}}"
-        }
-      }
-    },
-    {
-      "name": "Loop Each Competitor",
-      "type": "Split In Batches"
-    },
-    {
-      "name": "Crawl Catalog Page",
-      "type": "Code (Puppeteer)",
-      "config": {
-        "note": "Use n8n Code node with Puppeteer to render JS-heavy pages",
-        "script": "const puppeteer = require('puppeteer'); const browser = await puppeteer.launch({headless: true, args: ['--no-sandbox']}); const page = await browser.newPage(); await page.goto(item.catalog_url, {waitUntil: 'networkidle2'}); const html = await page.content(); await browser.close(); return [{json: {html, competitor: item}}];"
-      }
-    },
-    {
-      "name": "Extract Product List via Gemini",
-      "type": "HTTP Request",
-      "config": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{GEMINI_API_KEY}}",
-        "body": {
-          "contents": [
-            {
-              "parts": [
-                {
-                  "text": "다음 HTML에서 스마트홈/IoT 제품 목록을 추출해. 각 제품의 이름과 상세 페이지 URL을 JSON 배열로 반환해. [{\"name\": \"...\", \"url\": \"...\"}] 형태로만 반환."
-                },
-                {
-                  "text": "{{html}}"
-                }
-              ]
-            }
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/competitors?select=id,name,catalog_url,country",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
           ]
-        }
-      }
+        },
+        "options": {}
+      },
+      "id": "fetch-competitors",
+      "name": "Fetch Competitors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
     },
     {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-competitors",
+      "name": "Loop Competitors",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://puppeteer:3000/crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.catalog_url }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "crawl-catalog",
+      "name": "Crawl Catalog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '다음 HTML에서 스마트홈/IoT 제품 목록을 추출해. 각 제품의 이름과 상세 페이지 URL을 JSON 배열로 반환해. [{\"name\": \"...\", \"url\": \"...\"}] 형태로만 반환. 상대 URL은 절대 URL로 변환해.' }, { text: $json.html.substring(0, 30000) }] }] }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "gemini-list",
+      "name": "Gemini Extract List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst text = response.candidates?.[0]?.content?.parts?.[0]?.text || '[]';\nconst clean = text.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\nlet products;\ntry { products = JSON.parse(clean); } catch { products = []; }\n\nconst competitor = $('Loop Competitors').first().json;\nreturn products.map(p => ({\n  json: {\n    name: p.name,\n    product_url: p.url,\n    competitor_id: competitor.id,\n    competitor_name: competitor.name,\n    country: competitor.country\n  }\n}));"
+      },
+      "id": "parse-list",
+      "name": "Parse Product List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/products?competitor_id=eq.{{ $('Loop Competitors').first().json.id }}&select=product_url",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-existing",
+      "name": "Fetch Existing Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const newProducts = $('Parse Product List').all().map(i => i.json);\nconst existing = $('Fetch Existing Products').first().json;\nconst existingUrls = new Set(Array.isArray(existing) ? existing.map(e => e.product_url) : []);\n\nconst brandNew = newProducts.filter(p => !existingUrls.has(p.product_url));\nif (brandNew.length === 0) return [];\nreturn brandNew.map(p => ({ json: p }));"
+      },
+      "id": "filter-new",
       "name": "Filter New Products",
-      "type": "Code",
-      "config": {
-        "note": "Compare extracted products with existing DB products, keep only new ones"
-      }
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 400]
     },
     {
-      "name": "Crawl Each New Product Page",
-      "type": "Code (Puppeteer)",
-      "config": {
-        "note": "Same pattern as catalog crawl, but for individual product pages"
-      }
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "id": "has-items", "leftValue": "={{ $input.all().length }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-new-products",
+      "name": "Has New Products?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 400]
     },
     {
-      "name": "Extract Specs via Gemini",
-      "type": "HTTP Request",
-      "config": {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-new",
+      "name": "Loop New Products",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{GEMINI_API_KEY}}",
-        "prompt": "너는 IoT/스마트홈 디바이스 스펙 분석 전문가야. 주어진 HTML에서 제품 스펙을 전부 추출해 JSON으로 반환해.\n\n[규칙]\n- 페이지에 명시된 모든 스펙 항목을 빠짐없이 추출 → source: 'official'\n- 제품군(category)을 반드시 다음 고정 목록 중 하나로 분류: ['카메라', '도어락', '센서', '허브', '조명', '스위치', '기타']\n- 기존 등록된 spec_fields 항목: {{existing_spec_fields}} — 이 키에 매핑 시도\n- 매핑 안 되는 새 항목은 unmapped_specs로 분리\n\n[출력 형식 - 반드시 이 JSON 구조로만 반환]\n{\"name\": \"...\", \"model\": \"...\", \"category\": \"...\", \"price\": 0, \"image_url\": \"...\", \"specs\": [{\"key\": \"...\", \"label\": \"...\", \"value\": \"...\", \"source\": \"official\"}], \"unmapped_specs\": [{\"label\": \"...\", \"value\": \"...\", \"source\": \"official\"}]}"
-      }
+        "url": "http://puppeteer:3000/crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.product_url }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "crawl-product",
+      "name": "Crawl Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 300]
     },
     {
-      "name": "Research Missing Specs (Optional)",
-      "type": "HTTP Request",
-      "config": {
-        "note": "For products missing core specs (power, size, connectivity): use Google Custom Search API (free 100/day) to search for model name + specs, then send search results page to Gemini for extraction with source='researched' and source_url recorded. Skip if Custom Search quota exhausted.",
-        "google_custom_search_url": "https://www.googleapis.com/customsearch/v1?key={{GOOGLE_CSE_KEY}}&cx={{GOOGLE_CSE_ID}}&q={{product_model}}+스펙"
-      }
-    },
-    {
-      "name": "Save to Supabase",
-      "type": "HTTP Request",
-      "config": {
+      "parameters": {
         "method": "POST",
-        "url": "{{SUPABASE_URL}}/rest/v1/products",
-        "note": "Insert product then insert specs (both mapped and unmapped)"
-      }
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '너는 IoT/스마트홈 디바이스 스펙 분석 전문가야. 주어진 HTML에서 제품 스펙을 전부 추출해 JSON으로 반환해.\\n\\n[카테고리] 카메라, 도어락, 센서, 허브, 조명, 스위치, 기타\\n\\n[출력]\\n{\"name\": \"...\", \"model\": \"...\", \"category\": \"...\", \"price\": 0, \"image_url\": \"...\", \"specs\": [{\"key\": \"...\", \"label\": \"...\", \"value\": \"...\", \"source\": \"official\"}]}' }, { text: $json.html.substring(0, 30000) }] }] }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "gemini-specs",
+      "name": "Gemini Extract Specs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst text = response.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\nconst clean = text.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\nlet product;\ntry { product = JSON.parse(clean); } catch { return []; }\n\nconst prev = $('Loop New Products').first().json;\nproduct.competitor_id = prev.competitor_id;\nproduct.product_url = prev.product_url;\nproduct.country = prev.country;\nreturn [{ json: product }];"
+      },
+      "id": "parse-specs",
+      "name": "Parse Specs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/products",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.name, model_number: $json.model || null, category: $json.category || '기타', product_url: $json.product_url, image_url: $json.image_url || null, price: $json.price || null, country: $json.country || null, competitor_id: $json.competitor_id, source_type: 'monitored' }) }}",
+        "options": {}
+      },
+      "id": "save-product",
+      "name": "Save Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2880, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const product = $input.first().json;\nconst specs = $('Parse Specs').first().json.specs || [];\nreturn specs.map(s => ({\n  json: {\n    product_id: product.id,\n    field_key: s.key || s.label.toLowerCase().replace(/\\s+/g, '_'),\n    field_label: s.label,\n    value: String(s.value),\n    source: s.source || 'official'\n  }\n}));"
+      },
+      "id": "prepare-specs",
+      "name": "Prepare Specs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/specs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "save-specs",
+      "name": "Save Specs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3320, 300]
     }
   ],
-  "setup_instructions": {
-    "n8n_env_vars": {
-      "SUPABASE_URL": "your Supabase project URL",
-      "SUPABASE_ANON_KEY": "your Supabase anon key",
-      "GEMINI_API_KEY": "Google AI Studio API key (free)",
-      "GOOGLE_CSE_KEY": "Google Custom Search API key (free, 100 queries/day)",
-      "GOOGLE_CSE_ID": "Google Custom Search Engine ID"
-    },
-    "manual_steps": [
-      "1. Create new workflow 'Weekly Competitor Monitor' in n8n UI",
-      "2. Add Schedule Trigger → Every Monday 09:00",
-      "3. Add HTTP Request → GET Supabase competitors (is_active=true)",
-      "4. Add HTTP Request → GET Supabase spec_fields (for Gemini context)",
-      "5. Add Split In Batches → iterate each competitor",
-      "6. Add Code node → Puppeteer crawl catalog page",
-      "7. Add HTTP Request → POST to Gemini for product list extraction",
-      "8. Add Code node → Filter against existing products in Supabase",
-      "9. Add Code node → For each new product: Puppeteer crawl detail page",
-      "10. Add HTTP Request → POST to Gemini for spec extraction (use full prompt above)",
-      "11. Add HTTP Request (conditional) → Google Custom Search for missing core specs → Gemini extract with source='researched'",
-      "12. Add HTTP Request → POST products and specs to Supabase"
-    ]
-  }
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Fetch Competitors", "type": "main", "index": 0 }]] },
+    "Fetch Competitors": { "main": [[{ "node": "Loop Competitors", "type": "main", "index": 0 }]] },
+    "Loop Competitors": { "main": [[{ "node": "Crawl Catalog", "type": "main", "index": 0 }]] },
+    "Crawl Catalog": { "main": [[{ "node": "Gemini Extract List", "type": "main", "index": 0 }]] },
+    "Gemini Extract List": { "main": [[{ "node": "Parse Product List", "type": "main", "index": 0 }]] },
+    "Parse Product List": { "main": [[{ "node": "Filter New Products", "type": "main", "index": 0 }]] },
+    "Fetch Existing Products": { "main": [[{ "node": "Filter New Products", "type": "main", "index": 0 }]] },
+    "Filter New Products": { "main": [[{ "node": "Has New Products?", "type": "main", "index": 0 }]] },
+    "Has New Products?": { "main": [[{ "node": "Loop New Products", "type": "main", "index": 0 }], [{ "node": "Loop Competitors", "type": "main", "index": 0 }]] },
+    "Loop New Products": { "main": [[{ "node": "Crawl Product", "type": "main", "index": 0 }], [{ "node": "Loop Competitors", "type": "main", "index": 0 }]] },
+    "Crawl Product": { "main": [[{ "node": "Gemini Extract Specs", "type": "main", "index": 0 }]] },
+    "Gemini Extract Specs": { "main": [[{ "node": "Parse Specs", "type": "main", "index": 0 }]] },
+    "Parse Specs": { "main": [[{ "node": "Save Product", "type": "main", "index": 0 }]] },
+    "Save Product": { "main": [[{ "node": "Prepare Specs", "type": "main", "index": 0 }]] },
+    "Prepare Specs": { "main": [[{ "node": "Save Specs", "type": "main", "index": 0 }]] },
+    "Save Specs": { "main": [[{ "node": "Loop New Products", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
 }

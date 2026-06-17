@@ -252,7 +252,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
   const productIds = products.map((p) => p.id);
   const { specs, loading: sLoading } = useSpecs(productIds);
   const { brands, setBrands, loading: bLoading } = useDisplayBrands(productIds);
-  const { fields, loading: fLoading, reorder, renameField, toggle } = useSpecFields(category);
+  const { fields, loading: fLoading, reorder, renameField, toggle, addField, refresh: refreshFields } = useSpecFields(category);
 
   const [localSpecs, setLocalSpecs] = useState<Map<string, Spec>>(new Map());
   const [localImages, setLocalImages] = useState<Map<string, string | null>>(new Map());
@@ -307,11 +307,22 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
     []
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+
+    const activeId = String(active.id);
+
+    if (activeId.startsWith("other::")) {
+      if (over.id === "__hide_zone__") return;
+      const { fieldKey, fieldLabel } = active.data.current as { fieldKey: string; fieldLabel: string };
+      await addField(fieldKey, fieldLabel);
+      refreshFields();
+      return;
+    }
+
     if (over.id === "__hide_zone__") {
-      toggle(active.id as string, false);
+      toggle(activeId, false);
       return;
     }
     const oldIndex = visibleFields.findIndex((f) => f.id === active.id);

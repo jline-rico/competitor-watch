@@ -1,17 +1,193 @@
 {
-  "_doc": "Webhook workflow: triggered when user adds a new competitor from dashboard",
-  "trigger": {
-    "type": "Webhook",
-    "path": "/add-competitor",
-    "method": "POST",
-    "body": { "name": "string", "catalog_url": "string" }
+  "name": "CompetitorWatch - Add Competitor",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "add-competitor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "add-competitor-fixed"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://puppeteer:3000/crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.body.catalog_url }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "crawl-catalog",
+      "name": "Crawl Catalog",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: '다음 HTML에서 스마트홈/IoT 제품 목록을 추출해. 각 제품의 이름과 상세 페이지 URL을 JSON 배열로 반환해. [{\"name\": \"...\", \"url\": \"...\"}] 형태로만 반환. 상대 URL은 절대 URL로 변환해.' }, { text: $json.html.substring(0, 30000) }] }] }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "gemini-extract-list",
+      "name": "Gemini Extract Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst text = response.candidates?.[0]?.content?.parts?.[0]?.text || '[]';\nconst clean = text.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\nlet products;\ntry { products = JSON.parse(clean); } catch { products = []; }\n\nconst webhook = $('Webhook').first().json.body;\nreturn products.map(p => ({\n  json: {\n    name: p.name,\n    product_url: p.url,\n    competitor_name: webhook.name,\n    catalog_url: webhook.catalog_url,\n    country: webhook.country || null\n  }\n}));"
+      },
+      "id": "parse-products",
+      "name": "Parse Product List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-products",
+      "name": "Loop Products",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://puppeteer:3000/crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.product_url }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "crawl-detail",
+      "name": "Crawl Product Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `너는 IoT/스마트홈 디바이스 스펙 분석 전문가야. 주어진 HTML에서 제품 스펙을 전부 추출해 JSON으로 반환해.\n\n[카테고리 목록] 카메라, 도어락, 센서, 허브, 조명, 스위치, 기타\n\n[출력 형식]\n{\"name\": \"...\", \"model\": \"...\", \"category\": \"...\", \"price\": 0, \"image_url\": \"...\", \"specs\": [{\"key\": \"...\", \"label\": \"...\", \"value\": \"...\", \"source\": \"official\"}]}` }, { text: $json.html.substring(0, 30000) }] }] }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "gemini-extract-specs",
+      "name": "Gemini Extract Specs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst text = response.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\nconst clean = text.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\nlet product;\ntry { product = JSON.parse(clean); } catch { return []; }\n\nconst prev = $('Loop Products').first().json;\nproduct.competitor_name = prev.competitor_name;\nproduct.product_url = prev.product_url;\nproduct.country = prev.country;\nreturn [{ json: product }];"
+      },
+      "id": "parse-specs",
+      "name": "Parse Specs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/products",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.name, model_number: $json.model || null, category: $json.category || '기타', product_url: $json.product_url, image_url: $json.image_url || null, price: $json.price || null, country: $json.country || null, competitor_id: $env.TEMP_COMPETITOR_ID, source_type: 'monitored' }) }}",
+        "options": {}
+      },
+      "id": "save-product",
+      "name": "Save Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const product = $input.first().json;\nconst specs = $('Parse Specs').first().json.specs || [];\n\nreturn specs.map(s => ({\n  json: {\n    product_id: product.id,\n    field_key: s.key || s.label.toLowerCase().replace(/\\s+/g, '_'),\n    field_label: s.label,\n    value: String(s.value),\n    source: s.source || 'official'\n  }\n}));"
+      },
+      "id": "prepare-specs",
+      "name": "Prepare Specs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/specs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "save-specs",
+      "name": "Save Specs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: '경쟁사 등록 및 크롤링 완료' }) }}"
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2660, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Crawl Catalog", "type": "main", "index": 0 }]] },
+    "Crawl Catalog": { "main": [[{ "node": "Gemini Extract Products", "type": "main", "index": 0 }]] },
+    "Gemini Extract Products": { "main": [[{ "node": "Parse Product List", "type": "main", "index": 0 }]] },
+    "Parse Product List": { "main": [[{ "node": "Loop Products", "type": "main", "index": 0 }]] },
+    "Loop Products": { "main": [[{ "node": "Crawl Product Page", "type": "main", "index": 0 }], [{ "node": "Respond", "type": "main", "index": 0 }]] },
+    "Crawl Product Page": { "main": [[{ "node": "Gemini Extract Specs", "type": "main", "index": 0 }]] },
+    "Gemini Extract Specs": { "main": [[{ "node": "Parse Specs", "type": "main", "index": 0 }]] },
+    "Parse Specs": { "main": [[{ "node": "Save Product", "type": "main", "index": 0 }]] },
+    "Save Product": { "main": [[{ "node": "Prepare Specs", "type": "main", "index": 0 }]] },
+    "Prepare Specs": { "main": [[{ "node": "Save Specs", "type": "main", "index": 0 }]] },
+    "Save Specs": { "main": [[{ "node": "Loop Products", "type": "main", "index": 0 }]] }
   },
-  "steps": [
-    "1. Receive name + catalog_url from dashboard",
-    "2. Puppeteer: crawl catalog page",
-    "3. Gemini: extract all product listings",
-    "4. For each product: Puppeteer crawl detail page → Gemini extract specs",
-    "5. Save all products + specs to Supabase with source_type='monitored'",
-    "6. Respond with { success: true, products_found: N }"
-  ]
+  "settings": { "executionOrder": "v1" }
 }
