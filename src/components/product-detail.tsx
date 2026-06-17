@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateProduct, updateSpec, createSpec, deleteSpec, getKnownSpecKeys, getDisplayBrands, DISPLAY_BRAND_KEY } from "@/lib/queries";
 import type { Product, Spec, Competitor } from "@/lib/types";
+import { formatPrice } from "@/lib/format";
+import { CURRENCIES } from "@/lib/constants";
 
 interface Props {
   product: Product & { competitor: Pick<Competitor, "id" | "name" | "logo_url"> };
@@ -12,20 +14,26 @@ interface Props {
 
 function EditablePrice({
   value,
+  currency: initialCurrency,
   productId,
+  onCurrencyChange,
 }: {
   value: number | null;
+  currency: string;
   productId: string;
+  onCurrencyChange: (currency: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [price, setPrice] = useState(value);
   const [display, setDisplay] = useState(value);
   const [saving, setSaving] = useState(false);
+  const [currency, setCurrency] = useState(initialCurrency);
 
   const save = async () => {
     setSaving(true);
-    await updateProduct(productId, { price });
+    await updateProduct(productId, { price, currency });
     setDisplay(price);
+    onCurrencyChange(currency);
     setEditing(false);
     setSaving(false);
   };
@@ -45,7 +53,16 @@ function EditablePrice({
             if (e.key === "Escape") { setPrice(display); setEditing(false); }
           }}
         />
-        <span className="text-lg font-bold">원</span>
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          className="rounded border px-1.5 py-1 text-sm"
+          style={{ borderColor: "var(--accent)" }}
+        >
+          {CURRENCIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
         <button
           onClick={save}
           disabled={saving}
@@ -70,7 +87,7 @@ function EditablePrice({
       className="group inline-flex items-center gap-1 text-xl font-bold hover:opacity-70 transition-opacity"
       title="클릭하여 가격 수정"
     >
-      {display != null ? `${display.toLocaleString("ko-KR")}원` : "가격 미설정"}
+      {formatPrice(display, currency)}
       <svg
         width="14" height="14" viewBox="0 0 16 16" fill="none"
         className="opacity-0 group-hover:opacity-50 transition-opacity"
@@ -369,6 +386,7 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
   const [specs, setSpecs] = useState(initialSpecs.filter((s) => s.field_key !== DISPLAY_BRAND_KEY));
   const [knownKeys, setKnownKeys] = useState<{ field_key: string; field_label: string }[]>([]);
   const [displayBrand, setDisplayBrand] = useState<string | null>(null);
+  const [currency, setCurrency] = useState(product.currency);
 
   useEffect(() => {
     getKnownSpecKeys().then(setKnownKeys);
@@ -438,7 +456,12 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
             <p className="text-gray-500">{product.model_number}</p>
           )}
           <div className="mt-2 flex items-center gap-3">
-            <EditablePrice value={product.price} productId={product.id} />
+            <EditablePrice
+              value={product.price}
+              currency={currency}
+              productId={product.id}
+              onCurrencyChange={setCurrency}
+            />
             <span className="rounded bg-gray-100 px-2 py-1 text-sm">{product.category}</span>
             {Date.now() - new Date(product.discovered_at).getTime() < 14 * 24 * 60 * 60 * 1000 && (
               <span className="rounded bg-red-500 px-2 py-0.5 text-xs font-bold text-white">신규</span>

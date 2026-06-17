@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Product, Competitor } from "@/lib/types";
+import { formatPrice } from "@/lib/format";
 
 interface Props {
   product: Product & {
@@ -77,10 +78,9 @@ export function ProductCard({ product, displayBrand }: Props) {
           )}
         </div>
         <div className="text-right shrink-0">
-          {product.price && (
+          {product.price != null && (
             <p className="font-semibold font-mono-data" style={{ color: "var(--text-primary)" }}>
-              {product.price.toLocaleString("ko-KR")}
-              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>원</span>
+              {formatPrice(product.price, product.currency)}
             </p>
           )}
           <p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>
