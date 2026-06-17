@@ -247,25 +247,51 @@ export async function createSpecField(
 }
 
 export async function getUnmappedSpecs() {
-  const { data: allSpecs } = await supabase.from("specs").select("field_key, field_label, product_id");
-  const { data: allFields } = await supabase.from("spec_fields").select("field_key, category");
+  const { data: allSpecs } = await supabase
+    .from("specs")
+    .select("field_key, field_label, product_id, product:products(name, category)");
+  const { data: allFields } = await supabase
+    .from("spec_fields")
+    .select("field_key, category");
 
   if (!allSpecs || !allFields) return [];
 
   const mappedKeys = new Set(allFields.map((f: { field_key: string }) => f.field_key));
   const unmapped = allSpecs.filter((s: { field_key: string }) => s.field_key !== DISPLAY_BRAND_KEY && !mappedKeys.has(s.field_key));
 
-  const unique = new Map<string, { field_key: string; field_label: string; count: number }>();
+  const unique = new Map<string, {
+    field_key: string;
+    field_label: string;
+    count: number;
+    categories: Set<string>;
+    products: Set<string>;
+  }>();
+
   for (const s of unmapped) {
     const existing = unique.get(s.field_key);
+    const prod = (s as any).product;
+    const catName: string = prod?.category ?? "미분류";
+    const prodName: string = prod?.name ?? "알 수 없음";
     if (existing) {
       existing.count++;
+      existing.categories.add(catName);
+      existing.products.add(prodName);
     } else {
-      unique.set(s.field_key, { field_key: s.field_key, field_label: s.field_label, count: 1 });
+      unique.set(s.field_key, {
+        field_key: s.field_key,
+        field_label: s.field_label,
+        count: 1,
+        categories: new Set([catName]),
+        products: new Set([prodName]),
+      });
     }
   }
 
-  return Array.from(unique.values());
+  return Array.from(unique.values()).map((item) => ({
+    ...item,
+    categories: Array.from(item.categories),
+    products: Array.from(item.products),
+  }));
 }
 
 export async function getKnownSpecKeys() {
