@@ -5,8 +5,10 @@ export interface Competitor {
   name: string;
   catalog_url: string;
   logo_url: string | null;
+  country: string | null;
   is_active: boolean;
   created_at: string;
+  deleted_at: string | null;
 }
 
 export interface Product {
@@ -18,6 +20,7 @@ export interface Product {
   product_url: string | null;
   image_url: string | null;
   price: number | null;
+  country: string | null;
   is_new: boolean;
   source_type: "monitored" | "one_time";
   discovered_at: string;

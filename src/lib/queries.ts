@@ -7,6 +7,7 @@ export async function getCompetitors() {
   const { data, error } = await supabase
     .from("competitors")
     .select("*")
+    .is("deleted_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
   return data as Competitor[];
@@ -14,11 +15,12 @@ export async function getCompetitors() {
 
 export async function createCompetitor(
   name: string,
-  catalog_url: string
+  catalog_url: string,
+  country?: string
 ) {
   const { data, error } = await supabase
     .from("competitors")
-    .insert({ name, catalog_url })
+    .insert({ name, catalog_url, country: country || null })
     .select()
     .single();
   if (error) throw error;
@@ -27,7 +29,7 @@ export async function createCompetitor(
 
 export async function updateCompetitor(
   id: string,
-  updates: Partial<Pick<Competitor, "name" | "catalog_url" | "is_active">>
+  updates: Partial<Pick<Competitor, "name" | "catalog_url" | "is_active" | "country">>
 ) {
   const { error } = await supabase
     .from("competitors")
@@ -36,11 +38,64 @@ export async function updateCompetitor(
   if (error) throw error;
 }
 
-export async function deleteCompetitor(id: string) {
+export async function softDeleteCompetitor(id: string) {
   const { error } = await supabase
     .from("competitors")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) throw error;
+}
+
+export async function getDeletedCompetitors() {
+  const { data, error } = await supabase
+    .from("competitors")
+    .select("*")
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+  if (error) throw error;
+  return (data as Competitor[]).filter((c) => {
+    const deletedAt = new Date(c.deleted_at!).getTime();
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return deletedAt > cutoff;
+  });
+}
+
+export async function restoreCompetitor(id: string) {
+  const { error } = await supabase
+    .from("competitors")
+    .update({ deleted_at: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function cleanupDeletedCompetitors() {
+  const { data } = await supabase
+    .from("competitors")
+    .select("id, deleted_at")
+    .not("deleted_at", "is", null);
+  if (!data) return;
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const expired = data.filter(
+    (c: { deleted_at: string }) => new Date(c.deleted_at).getTime() <= cutoff
+  );
+  for (const c of expired) {
+    await supabase.from("competitors").delete().eq("id", c.id);
+  }
+}
+
+export async function getDeletePin(): Promise<string | null> {
+  const { data } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "delete_pin")
+    .maybeSingle();
+  return data?.value ?? null;
+}
+
+export async function setDeletePin(pin: string) {
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: "delete_pin", value: pin, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 
@@ -88,6 +143,49 @@ export async function getSpecsForProducts(productIds: string[]) {
     .in("product_id", productIds);
   if (error) throw error;
   return data as Spec[];
+}
+
+export async function updateProduct(
+  id: string,
+  fields: Partial<{ price: number | null; name: string; model_number: string | null; category: string; image_url: string | null }>
+) {
+  const { error } = await supabase.from("products").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteSpec(id: string) {
+  const { error } = await supabase.from("specs").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateSpec(id: string, value: string) {
+  const { error } = await supabase
+    .from("specs")
+    .update({ value, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function createSpec(
+  product_id: string,
+  field_key: string,
+  field_label: string,
+  value: string,
+  source: "official" | "researched" = "official"
+) {
+  const { data, error } = await supabase
+    .from("specs")
+    .insert({
+      product_id,
+      field_key,
+      field_label,
+      value,
+      source,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Spec;
 }
 
 // --- Spec Fields ---
@@ -155,7 +253,7 @@ export async function getUnmappedSpecs() {
   if (!allSpecs || !allFields) return [];
 
   const mappedKeys = new Set(allFields.map((f: { field_key: string }) => f.field_key));
-  const unmapped = allSpecs.filter((s: { field_key: string }) => !mappedKeys.has(s.field_key));
+  const unmapped = allSpecs.filter((s: { field_key: string }) => s.field_key !== DISPLAY_BRAND_KEY && !mappedKeys.has(s.field_key));
 
   const unique = new Map<string, { field_key: string; field_label: string; count: number }>();
   for (const s of unmapped) {
@@ -168,6 +266,96 @@ export async function getUnmappedSpecs() {
   }
 
   return Array.from(unique.values());
+}
+
+export async function getKnownSpecKeys() {
+  const { data } = await supabase
+    .from("specs")
+    .select("field_key, field_label");
+  if (!data) return [];
+  const unique = new Map<string, string>();
+  for (const s of data) {
+    if (s.field_key === DISPLAY_BRAND_KEY) continue;
+    if (!unique.has(s.field_key)) unique.set(s.field_key, s.field_label);
+  }
+  return Array.from(unique.entries()).map(([field_key, field_label]) => ({ field_key, field_label }));
+}
+
+export const DISPLAY_BRAND_KEY = "__display_brand__";
+
+export async function getDisplayBrands(productIds: string[]) {
+  if (productIds.length === 0) return new Map<string, string>();
+  const { data } = await supabase
+    .from("specs")
+    .select("product_id, value")
+    .in("product_id", productIds)
+    .eq("field_key", DISPLAY_BRAND_KEY);
+  const map = new Map<string, string>();
+  if (data) {
+    for (const row of data) map.set(row.product_id, row.value);
+  }
+  return map;
+}
+
+export async function setDisplayBrand(productId: string, brand: string) {
+  const { data: existing } = await supabase
+    .from("specs")
+    .select("id")
+    .eq("product_id", productId)
+    .eq("field_key", DISPLAY_BRAND_KEY)
+    .maybeSingle();
+
+  if (existing) {
+    if (!brand.trim()) {
+      await supabase.from("specs").delete().eq("id", existing.id);
+      return null;
+    }
+    await supabase
+      .from("specs")
+      .update({ value: brand.trim(), updated_at: new Date().toISOString() })
+      .eq("id", existing.id);
+  } else if (brand.trim()) {
+    await supabase.from("specs").insert({
+      product_id: productId,
+      field_key: DISPLAY_BRAND_KEY,
+      field_label: "표시 브랜드",
+      value: brand.trim(),
+      source: "official",
+    });
+  }
+  return brand.trim() || null;
+}
+
+export async function deleteSpecField(id: string) {
+  const { error } = await supabase.from("spec_fields").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function getAvailableSpecKeys(category: string) {
+  const { data: products } = await supabase
+    .from("products")
+    .select("id")
+    .eq("category", category);
+  if (!products || products.length === 0) return [];
+
+  const productIds = products.map((p: { id: string }) => p.id);
+  const { data: specs } = await supabase
+    .from("specs")
+    .select("field_key, field_label, product_id")
+    .in("product_id", productIds);
+  if (!specs) return [];
+
+  const map = new Map<string, { field_key: string; field_label: string; productCount: number }>();
+  for (const s of specs) {
+    if (s.field_key === DISPLAY_BRAND_KEY) continue;
+    const existing = map.get(s.field_key);
+    if (existing) {
+      existing.productCount++;
+    } else {
+      map.set(s.field_key, { field_key: s.field_key, field_label: s.field_label, productCount: 1 });
+    }
+  }
+  return Array.from(map.values());
 }
 
 export async function mapSpecToField(
