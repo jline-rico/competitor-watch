@@ -47,8 +47,9 @@ export function useSpecFields(category: string) {
   };
 
   const removeField = async (id: string) => {
+    const field = fields.find((f) => f.id === id);
     setFields((prev) => prev.filter((f) => f.id !== id));
-    await deleteSpecField(id);
+    await deleteSpecField(id, field?.field_key ?? "");
   };
 
   const renameField = (id: string, newLabel: string) => {

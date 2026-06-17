@@ -103,7 +103,7 @@ function SortableField({
         )}
         <button
           onClick={() => {
-            if (confirm(`"${field.field_label}" 항목을 삭제하시겠습니까?\n매핑이 완전히 제거되며, 기타 항목으로 돌아갑니다.`)) {
+            if (confirm(`"${field.field_label}" 항목을 삭제하시겠습니까?\n매핑과 관련 스펙 데이터가 완전히 삭제됩니다.`)) {
               onRemove(field.id);
             }
           }}

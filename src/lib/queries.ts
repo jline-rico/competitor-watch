@@ -379,7 +379,8 @@ export async function renameSpecsByFieldKey(
   if (error) throw error;
 }
 
-export async function deleteSpecField(id: string) {
+export async function deleteSpecField(id: string, fieldKey: string) {
+  await supabase.from("specs").delete().eq("field_key", fieldKey);
   const { error } = await supabase.from("spec_fields").delete().eq("id", id);
   if (error) throw error;
 }
