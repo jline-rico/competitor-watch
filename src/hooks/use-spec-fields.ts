@@ -6,6 +6,7 @@ import {
   updateSpecFieldOrder,
   toggleSpecFieldVisibility,
   createSpecField,
+  deleteSpecField,
 } from "@/lib/queries";
 import type { SpecField } from "@/lib/types";
 
@@ -45,5 +46,16 @@ export function useSpecFields(category: string) {
     setFields((prev) => [...prev, newField]);
   };
 
-  return { fields, loading, reorder, toggle, addField, refresh };
+  const removeField = async (id: string) => {
+    setFields((prev) => prev.filter((f) => f.id !== id));
+    await deleteSpecField(id);
+  };
+
+  const renameField = (id: string, newLabel: string) => {
+    setFields((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, field_label: newLabel } : f))
+    );
+  };
+
+  return { fields, loading, reorder, toggle, addField, removeField, renameField, refresh };
 }

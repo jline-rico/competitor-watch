@@ -352,6 +352,33 @@ export async function setDisplayBrand(productId: string, brand: string) {
   return brand.trim() || null;
 }
 
+export async function renameSpecField(
+  id: string,
+  fieldKey: string,
+  newLabel: string
+) {
+  const { error: fieldErr } = await supabase
+    .from("spec_fields")
+    .update({ field_label: newLabel })
+    .eq("id", id);
+  if (fieldErr) throw fieldErr;
+  await supabase
+    .from("specs")
+    .update({ field_label: newLabel })
+    .eq("field_key", fieldKey);
+}
+
+export async function renameSpecsByFieldKey(
+  fieldKey: string,
+  newLabel: string
+) {
+  const { error } = await supabase
+    .from("specs")
+    .update({ field_label: newLabel })
+    .eq("field_key", fieldKey);
+  if (error) throw error;
+}
+
 export async function deleteSpecField(id: string) {
   const { error } = await supabase.from("spec_fields").delete().eq("id", id);
   if (error) throw error;

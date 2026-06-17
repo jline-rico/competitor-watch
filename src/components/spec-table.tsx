@@ -7,6 +7,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
@@ -246,7 +247,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
   const productIds = products.map((p) => p.id);
   const { specs, loading: sLoading } = useSpecs(productIds);
   const { brands, setBrands, loading: bLoading } = useDisplayBrands(productIds);
-  const { fields, loading: fLoading, reorder } = useSpecFields(category);
+  const { fields, loading: fLoading, reorder, renameField, toggle } = useSpecFields(category);
 
   const [localSpecs, setLocalSpecs] = useState<Map<string, Spec>>(new Map());
   const [localImages, setLocalImages] = useState<Map<string, string | null>>(new Map());
@@ -290,6 +291,10 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    if (over.id === "__hide_zone__") {
+      toggle(active.id as string, false);
+      return;
+    }
     const oldIndex = visibleFields.findIndex((f) => f.id === active.id);
     const newIndex = visibleFields.findIndex((f) => f.id === over.id);
     const reordered = arrayMove(visibleFields, oldIndex, newIndex);
@@ -369,6 +374,28 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
           조사 대상 추가 탭에서 경쟁사를 먼저 등록하세요
         </p>
       </div>
+    );
+  }
+
+  function HideDropZone({ colSpan }: { colSpan: number }) {
+    const { setNodeRef, isOver } = useDroppable({ id: "__hide_zone__" });
+    return (
+      <tr
+        ref={setNodeRef}
+        style={{
+          background: isOver ? "rgba(194, 65, 12, 0.08)" : "var(--bg-warm)",
+          borderBottom: isOver ? "2px solid var(--accent)" : "1px solid var(--border)",
+          transition: "all 0.15s ease",
+        }}
+      >
+        <td
+          colSpan={colSpan}
+          className="px-4 py-2 text-xs font-bold uppercase"
+          style={{ color: isOver ? "var(--accent)" : "var(--text-tertiary)" }}
+        >
+          {isOver ? "↓ 여기에 놓으면 숨김 처리됩니다" : "기타"}
+        </td>
+      </tr>
     );
   }
 
@@ -543,15 +570,24 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
               ))}
             </tr>
             {visibleFieldIds ? (
-              visibleFields.map((field) => (
-                <SpecRow
-                  key={field.id}
-                  field={field}
+              <>
+                {visibleFields.map((field) => (
+                  <SpecRow
+                    key={field.id}
+                    field={field}
+                    products={sortedProducts}
+                    specsMap={specsMap}
+                    onSpecUpdated={handleSpecUpdated}
+                    onFieldRenamed={renameField}
+                  />
+                ))}
+                <OtherSpecsSection
                   products={sortedProducts}
                   specsMap={specsMap}
+                  commonFieldKeys={commonFieldKeys}
                   onSpecUpdated={handleSpecUpdated}
                 />
-              ))
+              </>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={visibleFields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
@@ -562,21 +598,25 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
                       products={sortedProducts}
                       specsMap={specsMap}
                       onSpecUpdated={handleSpecUpdated}
+                      onFieldRenamed={renameField}
                     />
                   ))}
                 </SortableContext>
+                <HideDropZone colSpan={sortedProducts.length + 2} />
+                <OtherSpecsSection
+                  products={sortedProducts}
+                  specsMap={specsMap}
+                  commonFieldKeys={commonFieldKeys}
+                  onSpecUpdated={handleSpecUpdated}
+                  hideHeader
+                />
               </DndContext>
             )}
-            <OtherSpecsSection
-              products={sortedProducts}
-              specsMap={specsMap}
-              commonFieldKeys={commonFieldKeys}
-            />
           </tbody>
         </table>
       </div>
       <p className="mt-2.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
-        * = 리서치 출처 &nbsp;&nbsp; ⠿ = 드래그 순서변경 &nbsp;&nbsp; 셀 클릭 = 값 수정 &nbsp;&nbsp; 헤더 클릭 = 정렬
+        * = 리서치 출처 &nbsp;&nbsp; ⠿ = 드래그 순서변경/기타로 숨김 &nbsp;&nbsp; 셀 클릭 = 값 수정 &nbsp;&nbsp; 헤더 클릭 = 정렬
       </p>
     </div>
   );

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { updateSpec, createSpec } from "@/lib/queries";
+import { updateSpec, createSpec, renameSpecField } from "@/lib/queries";
 import type { SpecField, Product, Spec } from "@/lib/types";
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   products: Product[];
   specsMap: Map<string, Map<string, Spec>>;
   onSpecUpdated: (productId: string, fieldKey: string, spec: Spec) => void;
+  onFieldRenamed?: (fieldId: string, newLabel: string) => void;
 }
 
 function EditableCell({
@@ -177,7 +178,127 @@ function EditableCell({
   );
 }
 
-export function SpecRow({ field, products, specsMap, onSpecUpdated }: Props) {
+function EditableFieldLabel({
+  field,
+  onRenamed,
+}: {
+  field: SpecField;
+  onRenamed?: (fieldId: string, newLabel: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(field.field_label);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setValue(field.field_label);
+  }, [field.field_label]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const handleSave = async () => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === field.field_label) {
+      setValue(field.field_label);
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await renameSpecField(field.id, field.field_key, trimmed);
+      onRenamed?.(field.id, trimmed);
+    } catch {
+      setValue(field.field_label);
+    } finally {
+      setSaving(false);
+      setEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setValue(field.field_label);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleCancel}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") handleCancel();
+          }}
+          disabled={saving}
+          className="px-2 py-1 text-sm font-medium"
+          style={{
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--accent)",
+            background: "var(--surface)",
+            outline: "none",
+            minWidth: "80px",
+            color: "var(--text-secondary)",
+          }}
+        />
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleSave}
+          disabled={saving}
+          title="저장"
+          className="cursor-pointer border-none transition-colors"
+          style={{
+            background: "transparent",
+            color: "var(--success, #16a34a)",
+            fontSize: "14px",
+            padding: "2px 4px",
+            borderRadius: "var(--radius-sm)",
+          }}
+        >
+          {saving ? "⏳" : "✓"}
+        </button>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleCancel}
+          title="취소"
+          className="cursor-pointer border-none transition-colors"
+          style={{
+            background: "transparent",
+            color: "var(--text-tertiary)",
+            fontSize: "14px",
+            padding: "2px 4px",
+            borderRadius: "var(--radius-sm)",
+          }}
+        >
+          ✕
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="cursor-pointer rounded px-1 py-0.5 transition-colors"
+      onClick={() => setEditing(true)}
+      title="클릭하여 항목명 수정"
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--bg-warm)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      {field.field_label}
+    </span>
+  );
+}
+
+export function SpecRow({ field, products, specsMap, onSpecUpdated, onFieldRenamed }: Props) {
   const {
     attributes,
     listeners,
@@ -210,7 +331,7 @@ export function SpecRow({ field, products, specsMap, onSpecUpdated }: Props) {
         className="px-4 py-3 text-sm font-medium whitespace-nowrap"
         style={{ color: "var(--text-secondary)" }}
       >
-        {field.field_label}
+        <EditableFieldLabel field={field} onRenamed={onFieldRenamed} />
       </td>
       {products.map((product) => {
         const spec = specsMap.get(product.id)?.get(field.field_key);
