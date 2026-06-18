@@ -287,10 +287,13 @@ export function ManualEntryModal({ open, onClose }: Props) {
                   <input type="number" placeholder="가격 (선택)" value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     className="flex-1 px-3.5 py-2.5 text-sm" style={inputStyle} />
-                  <select value={currency} onChange={(e) => setCurrency(e.target.value)}
-                    className="w-24 px-3.5 py-2.5 text-sm" style={inputStyle}>
-                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <input list="manual-currency-list" value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    placeholder="통화"
+                    className="w-24 px-3.5 py-2.5 text-sm" style={inputStyle} />
+                  <datalist id="manual-currency-list">
+                    {CURRENCIES.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
 
                 <input type="text" placeholder="제품 페이지 URL (선택)" value={productUrl}

@@ -310,16 +310,19 @@ function EditablePrice({
             if (e.key === "Escape") { setPrice(display); setEditing(false); }
           }}
         />
-        <select
+        <input
+          list="price-currency-list"
           value={currency}
           onChange={(e) => setCurrency(e.target.value)}
-          className="rounded border px-1.5 py-1 text-sm"
+          placeholder="통화"
+          className="w-20 rounded border px-1.5 py-1 text-sm"
           style={{ borderColor: "var(--accent)" }}
-        >
+        />
+        <datalist id="price-currency-list">
           {CURRENCIES.map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c} />
           ))}
-        </select>
+        </datalist>
         <button
           onClick={save}
           disabled={saving}
