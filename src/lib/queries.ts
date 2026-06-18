@@ -36,6 +36,12 @@ export async function updateCompetitor(
     .update(updates)
     .eq("id", id);
   if (error) throw error;
+  if ("country" in updates) {
+    await supabase
+      .from("products")
+      .update({ country: updates.country ?? null })
+      .eq("competitor_id", id);
+  }
 }
 
 export async function softDeleteCompetitor(id: string) {
