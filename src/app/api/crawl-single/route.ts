@@ -12,8 +12,9 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+  const endpoint = body.research_mode ? "/run-research" : "/run-single";
 
-  const res = await fetch(`${workerUrl}/run-single`, {
+  const res = await fetch(`${workerUrl}${endpoint}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
