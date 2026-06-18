@@ -231,7 +231,7 @@ export function CompetitorList() {
                               autoFocus
                             />
                             <datalist id="settings-country-list">
-                              {COUNTRIES.map((ct) => (
+                              {[...new Set([...COUNTRIES, ...competitors.map((c) => c.country).filter(Boolean) as string[]])].map((ct) => (
                                 <option key={ct} value={ct} />
                               ))}
                             </datalist>
