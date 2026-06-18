@@ -509,10 +509,12 @@ export async function getLatestCrawlStatus() {
   today.setHours(today.getHours() + 9);
   const todayStr = today.toISOString().split("T")[0];
 
-  const { count } = await supabase
+  const { data: todayLogs } = await supabase
     .from("crawl_logs")
-    .select("*", { count: "exact", head: true })
+    .select("tokens_used")
     .gte("run_at", `${todayStr}T00:00:00+09:00`);
+
+  const todayTokens = (todayLogs || []).reduce((sum, r) => sum + (r.tokens_used || 0), 0);
 
   const { data: latest } = await supabase
     .from("crawl_logs")
@@ -527,8 +529,8 @@ export async function getLatestCrawlStatus() {
     .in("ai_research_status", ["pending", "running"]);
 
   return {
-    todayApiCalls: count || 0,
-    apiLimit: 1500,
+    todayTokens,
+    tokenLimit: 1_000_000,
     latestRun: latest,
     pendingResearch: pending?.length || 0,
   };

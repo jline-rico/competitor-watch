@@ -39,6 +39,7 @@ async function processCompetitor(
   competitor: Competitor,
 ): Promise<CrawlLog> {
   const start = Date.now();
+  const tokensBefore = getTokensUsed();
   const log: CrawlLog = {
     competitor_id: competitor.id,
     catalog_crawl_ok: false,
@@ -49,6 +50,7 @@ async function processCompetitor(
     specs_failed: 0,
     error_message: null,
     duration_ms: 0,
+    tokens_used: 0,
   };
 
   try {
@@ -182,6 +184,7 @@ async function processCompetitor(
     log.error_message = err instanceof Error ? err.message : String(err);
   } finally {
     log.duration_ms = Date.now() - start;
+    log.tokens_used = getTokensUsed() - tokensBefore;
   }
 
   return log;

@@ -61,4 +61,5 @@ export interface CrawlLog {
   specs_failed: number;
   error_message: string | null;
   duration_ms: number;
+  tokens_used: number;
 }

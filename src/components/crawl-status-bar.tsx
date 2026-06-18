@@ -7,9 +7,9 @@ export function CrawlStatusBar() {
 
   if (loading || !status) return null;
 
-  const { todayApiCalls, apiLimit, latestRun, pendingResearch } = status;
+  const { todayTokens, tokenLimit, latestRun, pendingResearch } = status;
   const isRunning = pendingResearch > 0;
-  const isOverLimit = todayApiCalls >= apiLimit;
+  const isOverLimit = todayTokens >= tokenLimit;
 
   let bg: string;
   let border: string;
@@ -59,7 +59,7 @@ export function CrawlStatusBar() {
         {icon} {message}
       </span>
       <span>
-        Gemini: {todayApiCalls.toLocaleString()} / {apiLimit.toLocaleString()}
+        Gemini: {todayTokens >= 1000 ? `${Math.round(todayTokens / 1000).toLocaleString()}K` : todayTokens.toLocaleString()} / {(tokenLimit / 1000).toLocaleString()}K 토큰
       </span>
     </div>
   );

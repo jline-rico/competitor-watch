@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { getLatestCrawlStatus } from "@/lib/queries";
 
 interface CrawlStatus {
-  todayApiCalls: number;
-  apiLimit: number;
+  todayTokens: number;
+  tokenLimit: number;
   latestRun: {
     run_at: string;
     competitor: { name: string } | { name: string }[] | null;
