@@ -22,6 +22,7 @@ import { useSpecs } from "@/hooks/use-specs";
 import { useSpecFields } from "@/hooks/use-spec-fields";
 import { useDisplayBrands } from "@/hooks/use-display-brands";
 import { setDisplayBrand, updateProduct } from "@/lib/queries";
+import { CURRENCIES } from "@/lib/constants";
 import { SpecRow } from "./spec-row";
 import { OtherSpecsSection } from "./other-specs-section";
 import { ProductFilter } from "./product-filter";
@@ -233,6 +234,112 @@ function EditableProductImage({
   );
 }
 
+function EditableTablePrice({
+  product,
+  onPriceChange,
+}: {
+  product: { id: string; price: number | null; currency: string };
+  onPriceChange: (id: string, price: number | null, currency: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [price, setPrice] = useState(product.price?.toString() ?? "");
+  const [currency, setCurrency] = useState(product.currency);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const handleSave = async () => {
+    const numPrice = price.trim() ? Number(price) : null;
+    await updateProduct(product.id, { price: numPrice, currency });
+    onPriceChange(product.id, numPrice, currency);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-1.5" style={{ minWidth: 100 }}>
+        <div className="flex gap-1">
+          <input
+            ref={inputRef}
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+              if (e.key === "Escape") {
+                setPrice(product.price?.toString() ?? "");
+                setCurrency(product.currency);
+                setEditing(false);
+              }
+            }}
+            placeholder="가격"
+            className="w-20 px-1.5 py-0.5 text-xs"
+            style={{
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--accent)",
+              background: "var(--surface)",
+              outline: "none",
+            }}
+          />
+          <input
+            type="text"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            list="table-currency-list"
+            className="w-14 px-1 py-0.5 text-xs"
+            style={{
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--accent)",
+              background: "var(--surface)",
+              outline: "none",
+            }}
+          />
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={handleSave}
+            className="text-sm transition-colors"
+            style={{ color: "var(--success, #22c55e)" }}
+            title="저장"
+          >
+            ✓
+          </button>
+          <button
+            onClick={() => {
+              setPrice(product.price?.toString() ?? "");
+              setCurrency(product.currency);
+              setEditing(false);
+            }}
+            className="text-sm transition-colors"
+            style={{ color: "var(--text-tertiary)" }}
+            title="취소"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 cursor-pointer rounded px-1 py-0.5 transition-colors"
+      onClick={() => {
+        setPrice(product.price?.toString() ?? "");
+        setCurrency(product.currency);
+        setEditing(true);
+      }}
+      title="클릭하여 가격 수정"
+      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-warm)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      {formatPrice(product.price, product.currency)}
+    </span>
+  );
+}
+
 export type SortDir = "asc" | "desc" | null;
 
 interface Props {
@@ -258,6 +365,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
 
   const [localSpecs, setLocalSpecs] = useState<Map<string, Spec>>(new Map());
   const [localImages, setLocalImages] = useState<Map<string, string | null>>(new Map());
+  const [localPrices, setLocalPrices] = useState<Map<string, { price: number | null; currency: string }>>(new Map());
   const [copied, setCopied] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, {
@@ -521,7 +629,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
           <thead>
             <tr style={{ background: "var(--bg-warm)" }}>
               <th className="w-8" />
-              <th className="px-4 pt-4 pb-2 text-left text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>
+              <th className="px-4 pt-4 pb-2 text-left text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 제품 이미지
               </th>
               {sortedProducts.map((p) => (
@@ -545,8 +653,8 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
             <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
               <th className="w-8" />
               <th
-                className="px-4 py-2 text-left text-xs font-medium cursor-pointer select-none"
-                style={{ color: "var(--text-tertiary)" }}
+                className="px-4 py-2 text-left text-sm font-medium cursor-pointer select-none"
+                style={{ color: "var(--text-secondary)" }}
                 onClick={() => handleHeaderClick("__product__")}
                 onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
@@ -615,11 +723,27 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
                 판매가격
                 <SortIndicator field="__price__" />
               </td>
-              {sortedProducts.map((p) => (
-                <td key={p.id} className="px-4 py-3 text-sm font-mono-data">
-                  {formatPrice(p.price, p.currency)}
-                </td>
-              ))}
+              {sortedProducts.map((p) => {
+                const local = localPrices.get(p.id);
+                return (
+                  <td key={p.id} className="px-4 py-3 text-sm font-mono-data">
+                    <EditableTablePrice
+                      product={{
+                        id: p.id,
+                        price: local ? local.price : p.price,
+                        currency: local ? local.currency : p.currency,
+                      }}
+                      onPriceChange={(id, price, currency) => {
+                        setLocalPrices((prev) => {
+                          const next = new Map(prev);
+                          next.set(id, { price, currency });
+                          return next;
+                        });
+                      }}
+                    />
+                  </td>
+                );
+              })}
             </tr>
             {/* Fixed row: 출시국가 */}
             <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
@@ -687,6 +811,9 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
         </table>
         </div>
       </div>
+      <datalist id="table-currency-list">
+        {CURRENCIES.map((c) => <option key={c} value={c} />)}
+      </datalist>
       <p className="mt-2.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
         * = 리서치 출처 &nbsp;&nbsp; ⠿ = 드래그 순서변경/기타로 숨김 &nbsp;&nbsp; 셀 클릭 = 값 수정 &nbsp;&nbsp; 헤더 클릭 = 정렬
       </p>
