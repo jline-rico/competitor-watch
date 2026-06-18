@@ -271,14 +271,16 @@ export function ManualEntryModal({ open, onClose }: Props) {
                     <option value="">카테고리 선택</option>
                     {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
-                  <select value={country} onChange={(e) => setCountry(e.target.value)}
+                  <input list="manual-country-list" value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="국가 선택 또는 입력"
                     className="flex-1 px-3.5 py-2.5 text-sm" style={{
                       ...inputStyle,
                       color: country ? "var(--text-primary)" : "var(--text-tertiary)",
-                    }}>
-                    <option value="">국가 선택</option>
-                    {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                    }} />
+                  <datalist id="manual-country-list">
+                    {COUNTRIES.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
 
                 <div className="flex gap-2">

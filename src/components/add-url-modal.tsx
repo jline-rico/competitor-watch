@@ -302,10 +302,12 @@ export function AddUrlModal({ open, onClose }: Props) {
                   }}
                 />
 
-                {/* 국가: 드롭다운 */}
-                <select
+                {/* 국가: 콤보박스 (기존 선택 + 자유 입력) */}
+                <input
+                  list="country-list"
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
+                  placeholder="출시 국가 선택 또는 입력"
                   className="w-full px-3.5 py-2.5 text-sm"
                   style={{
                     borderRadius: "var(--radius-sm)",
@@ -313,12 +315,12 @@ export function AddUrlModal({ open, onClose }: Props) {
                     background: "var(--surface)",
                     color: country ? "var(--text-primary)" : "var(--text-tertiary)",
                   }}
-                >
-                  <option value="">출시 국가 선택</option>
+                />
+                <datalist id="country-list">
                   {COUNTRIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               {error && (
