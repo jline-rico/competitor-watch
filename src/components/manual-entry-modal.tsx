@@ -279,7 +279,9 @@ export function ManualEntryModal({ open, onClose }: Props) {
                       color: country ? "var(--text-primary)" : "var(--text-tertiary)",
                     }} />
                   <datalist id="manual-country-list">
-                    {COUNTRIES.map((c) => <option key={c} value={c} />)}
+                    {[...new Set([...COUNTRIES, ...competitors.map((c) => c.country).filter(Boolean) as string[]])].map((c) => (
+                      <option key={c} value={c} />
+                    ))}
                   </datalist>
                 </div>
 

@@ -317,7 +317,7 @@ export function AddUrlModal({ open, onClose }: Props) {
                   }}
                 />
                 <datalist id="country-list">
-                  {COUNTRIES.map((c) => (
+                  {[...new Set([...COUNTRIES, ...competitors.map((c) => c.country).filter(Boolean) as string[]])].map((c) => (
                     <option key={c} value={c} />
                   ))}
                 </datalist>

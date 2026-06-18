@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateProduct, updateSpec, createSpec, deleteSpec, getKnownSpecKeys, getDisplayBrands, DISPLAY_BRAND_KEY } from "@/lib/queries";
+import { updateProduct, updateSpec, createSpec, deleteSpec, getKnownSpecKeys, getDisplayBrands, getCompetitors, DISPLAY_BRAND_KEY } from "@/lib/queries";
 import type { Product, Spec, Competitor } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { CURRENCIES, CATEGORIES, COUNTRIES } from "@/lib/constants";
@@ -128,9 +128,11 @@ function EditableSelect({
 function EditableCountry({
   value,
   productId,
+  knownCountries,
 }: {
   value: string | null;
   productId: string;
+  knownCountries?: string[];
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(value || "");
@@ -160,7 +162,9 @@ function EditableCountry({
           }}
         />
         <datalist id="detail-country-list">
-          {COUNTRIES.map((c) => <option key={c} value={c} />)}
+          {[...new Set([...COUNTRIES, ...(knownCountries || [])])].map((c) => (
+            <option key={c} value={c} />
+          ))}
         </datalist>
         <button onClick={save} className="rounded px-2 py-0.5 text-xs font-medium text-white" style={{ background: "var(--accent)" }}>저장</button>
         <button onClick={() => { setText(display); setEditing(false); }} className="rounded px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-100">취소</button>
@@ -648,10 +652,15 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
   const [displayBrand, setDisplayBrand] = useState<string | null>(null);
   const [currency, setCurrency] = useState(product.currency);
   const [imageUrl, setImageUrl] = useState(product.image_url);
+  const [knownCountries, setKnownCountries] = useState<string[]>([]);
 
   useEffect(() => {
     getKnownSpecKeys().then(setKnownKeys);
     getDisplayBrands([product.id]).then((m) => setDisplayBrand(m.get(product.id) ?? null));
+    getCompetitors().then((comps) => {
+      const countries = comps.map((c) => c.country).filter(Boolean) as string[];
+      setKnownCountries([...new Set(countries)]);
+    });
   }, [product.id]);
 
   const officialSpecs = specs.filter((s) => s.source === "official" && s.field_key !== DISPLAY_BRAND_KEY);
@@ -706,7 +715,7 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
               onCurrencyChange={setCurrency}
             />
             <EditableSelect value={product.category} productId={product.id} field="category" options={CATEGORIES} placeholder="카테고리" />
-            <EditableCountry value={product.country} productId={product.id} />
+            <EditableCountry value={product.country} productId={product.id} knownCountries={knownCountries} />
             {Date.now() - new Date(product.discovered_at).getTime() < 14 * 24 * 60 * 60 * 1000 && (
               <span className="rounded bg-red-500 px-2 py-0.5 text-xs font-bold text-white">신규</span>
             )}
