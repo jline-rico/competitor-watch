@@ -8,7 +8,7 @@ interface CrawlStatus {
   apiLimit: number;
   latestRun: {
     run_at: string;
-    competitor: { name: string } | null;
+    competitor: { name: string } | { name: string }[] | null;
     error_message: string | null;
   } | null;
   pendingResearch: number;
