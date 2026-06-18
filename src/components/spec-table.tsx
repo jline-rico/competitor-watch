@@ -673,10 +673,10 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
               <th className="w-8" />
               <th
                 className="px-4 py-2 text-left text-sm font-medium cursor-pointer select-none"
-                style={{ color: "var(--text-tertiary)" }}
+                style={{ color: "var(--text-secondary)" }}
                 onClick={() => handleHeaderClick("__product__")}
                 onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
               >
                 제품명
                 <SortIndicator field="__product__" />
@@ -701,10 +701,10 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
               <th className="w-8" />
               <th
                 className="px-4 py-2 text-left text-sm font-medium whitespace-nowrap cursor-pointer select-none"
-                style={{ color: "var(--text-tertiary)" }}
+                style={{ color: "var(--text-secondary)" }}
                 onClick={() => handleHeaderClick("__country__")}
                 onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
               >
                 출시국가
                 <SortIndicator field="__country__" />
