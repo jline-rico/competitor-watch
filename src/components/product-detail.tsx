@@ -69,6 +69,73 @@ function EditableText({
   );
 }
 
+function EditableUrl({
+  value,
+  productId,
+}: {
+  value: string | null;
+  productId: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value || "");
+  const [display, setDisplay] = useState(value || "");
+
+  const save = async () => {
+    const trimmed = text.trim();
+    await updateProduct(productId, { product_url: trimmed || null });
+    setDisplay(trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="mt-2 flex items-center gap-1.5">
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className="flex-1 rounded border px-2 py-1 text-sm font-mono"
+          style={{ borderColor: "var(--accent)", minWidth: 200 }}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") { setText(display); setEditing(false); }
+          }}
+        />
+        <button onClick={save} className="rounded px-2 py-0.5 text-xs font-medium text-white" style={{ background: "var(--accent)" }}>저장</button>
+        <button onClick={() => { setText(display); setEditing(false); }} className="rounded px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-100">취소</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-1.5">
+      {display ? (
+        <a
+          href={display}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-blue-600 hover:underline truncate"
+          style={{ maxWidth: "400px" }}
+        >
+          {display}
+        </a>
+      ) : (
+        <span className="text-sm" style={{ color: "var(--text-tertiary)" }}>URL 미입력</span>
+      )}
+      <button
+        onClick={() => { setText(display); setEditing(true); }}
+        className="shrink-0 rounded p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+        title="URL 수정"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M11.5 2.5l2 2M2 11l-0.5 3.5L5 14l9-9-2-2-10 10z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function EditableSelect({
   value,
   productId,
@@ -720,9 +787,7 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
               <span className="rounded bg-red-500 px-2 py-0.5 text-xs font-bold text-white">신규</span>
             )}
           </div>
-          <div className="mt-2">
-            <EditableText value={product.product_url} productId={product.id} field="product_url" placeholder="제품 페이지 URL 입력" className="text-sm text-blue-600" />
-          </div>
+          <EditableUrl value={product.product_url} productId={product.id} />
         </div>
       </div>
 

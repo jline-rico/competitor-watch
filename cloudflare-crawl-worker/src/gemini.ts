@@ -1,5 +1,5 @@
 const GEMINI_BASE =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 const CATEGORIES = ["카메라", "도어락", "센서", "허브", "조명", "스위치", "기타"];
 
@@ -18,7 +18,22 @@ export interface ExtractedProduct {
   specs: { key: string; label: string; value: string }[];
 }
 
+const TOKEN_LIMIT = 1_000_000;
+let totalTokensUsed = 0;
+
+export function getTokensUsed(): number {
+  return totalTokensUsed;
+}
+
+export function resetTokensUsed(): void {
+  totalTokensUsed = 0;
+}
+
 async function callGemini(apiKey: string, contents: unknown[]): Promise<string> {
+  if (totalTokensUsed >= TOKEN_LIMIT) {
+    throw new Error(`Token limit reached (${totalTokensUsed.toLocaleString()} / ${TOKEN_LIMIT.toLocaleString()})`);
+  }
+
   const res = await fetch(`${GEMINI_BASE}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -32,7 +47,12 @@ async function callGemini(apiKey: string, contents: unknown[]): Promise<string> 
 
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
+    usageMetadata?: { totalTokenCount?: number };
   };
+
+  const tokens = data.usageMetadata?.totalTokenCount || 0;
+  totalTokensUsed += tokens;
+
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   return text.replace(/```json\n?/g, "").replace(/```/g, "").trim();
 }

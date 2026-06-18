@@ -12,7 +12,20 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const endpoint = body.research_mode ? "/run-research" : "/run-single";
+
+  let endpoint: string;
+  let fetchBody: string;
+
+  if (body.catalog_mode && body.competitor_id) {
+    endpoint = `/run?competitor_id=${body.competitor_id}`;
+    fetchBody = "{}";
+  } else if (body.research_mode) {
+    endpoint = "/run-research";
+    fetchBody = JSON.stringify(body);
+  } else {
+    endpoint = "/run-single";
+    fetchBody = JSON.stringify(body);
+  }
 
   const res = await fetch(`${workerUrl}${endpoint}`, {
     method: "POST",
@@ -20,7 +33,7 @@ export async function POST(request: Request) {
       "Content-Type": "application/json",
       "X-Auth-Token": workerToken,
     },
-    body: JSON.stringify(body),
+    body: fetchBody,
   });
 
   const data = await res.json();

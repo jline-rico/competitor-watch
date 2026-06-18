@@ -49,14 +49,11 @@ export function AddUrlModal({ open, onClose }: Props) {
     try {
       if (mode === "competitor") {
         const created = await createCompetitor(name.trim(), url.trim(), country || undefined);
-        // Trigger immediate crawl for this competitor via Worker
         fetch("/api/crawl-single", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            competitor_name: name.trim(),
-            product_url: url.trim(),
-            country: country || null,
+            catalog_mode: true,
             competitor_id: created.id,
           }),
         }).catch(() => {});

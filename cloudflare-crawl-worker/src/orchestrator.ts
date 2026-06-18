@@ -4,6 +4,8 @@ import {
   extractProductSpecs,
   extractSpecsFromImage,
   researchProductByName,
+  getTokensUsed,
+  resetTokensUsed,
 } from "./gemini";
 import { trimHtml, hasProductLinks } from "./html-trimmer";
 import type { Env, Competitor, CrawlLog } from "./supabase";
@@ -193,7 +195,8 @@ export async function runSingle(
     country?: string | null;
     competitor_id?: string | null;
   },
-): Promise<{ ok: boolean; product_id?: string; specs_count?: number; specs_source?: string; error?: string }> {
+): Promise<{ ok: boolean; product_id?: string; specs_count?: number; specs_source?: string; tokens_used?: number; error?: string }> {
+  resetTokensUsed();
   const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
 
   try {
@@ -270,20 +273,25 @@ export async function runSingle(
         source: "official",
       }));
       await db.insertSpecs(specs);
-      return { ok: true, product_id: saved.id, specs_count: specs.length, specs_source: specsSource };
+      return { ok: true, product_id: saved.id, specs_count: specs.length, specs_source: specsSource, tokens_used: getTokensUsed() };
     }
 
-    return { ok: true, product_id: saved?.id, specs_count: 0, specs_source: specsSource };
+    return { ok: true, product_id: saved?.id, specs_count: 0, specs_source: specsSource, tokens_used: getTokensUsed() };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: err instanceof Error ? err.message : String(err), tokens_used: getTokensUsed() };
   }
 }
 
 export async function runPipeline(
   env: Env,
-): Promise<{ logs: CrawlLog[] }> {
+  competitorId?: string | null,
+): Promise<{ logs: CrawlLog[]; tokens_used: number }> {
+  resetTokensUsed();
   const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
-  const competitors = await db.getActiveCompetitors();
+  const allCompetitors = await db.getActiveCompetitors();
+  const competitors = competitorId
+    ? allCompetitors.filter((c) => c.id === competitorId)
+    : allCompetitors;
   const doneThisWeek = new Set(await db.getSuccessfulThisWeek());
 
   const logs: CrawlLog[] = [];
@@ -295,7 +303,7 @@ export async function runPipeline(
     logs.push(log);
   }
 
-  return { logs };
+  return { logs, tokens_used: getTokensUsed() };
 }
 
 export async function runResearch(
@@ -307,7 +315,8 @@ export async function runResearch(
     country?: string | null;
     product_id: string;
   },
-): Promise<{ ok: boolean; specs_count?: number; error?: string }> {
+): Promise<{ ok: boolean; specs_count?: number; tokens_used?: number; error?: string }> {
+  resetTokensUsed();
   const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
 
   try {
@@ -361,12 +370,12 @@ export async function runResearch(
       body: JSON.stringify({ ai_research_status: "done" }),
     });
 
-    return { ok: true, specs_count: newSpecs.length };
+    return { ok: true, specs_count: newSpecs.length, tokens_used: getTokensUsed() };
   } catch (err) {
     await db.request(`products?id=eq.${params.product_id}`, {
       method: "PATCH",
       body: JSON.stringify({ ai_research_status: "failed" }),
     }).catch(() => {});
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: err instanceof Error ? err.message : String(err), tokens_used: getTokensUsed() };
   }
 }

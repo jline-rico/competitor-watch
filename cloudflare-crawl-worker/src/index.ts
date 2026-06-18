@@ -12,7 +12,8 @@ export default {
 
     if (url.pathname === "/run" && request.method === "POST") {
       try {
-        const result = await runPipeline(env);
+        const competitorId = url.searchParams.get("competitor_id");
+        const result = await runPipeline(env, competitorId);
         return Response.json(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
