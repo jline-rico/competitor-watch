@@ -3,6 +3,7 @@ import {
   extractCatalogList,
   extractProductSpecs,
   extractSpecsFromImage,
+  researchProductByName,
 } from "./gemini";
 import { trimHtml, hasProductLinks } from "./html-trimmer";
 import type { Env, Competitor, CrawlLog } from "./supabase";
@@ -295,4 +296,77 @@ export async function runPipeline(
   }
 
   return { logs };
+}
+
+export async function runResearch(
+  env: Env,
+  params: {
+    competitor_name: string;
+    product_name: string;
+    model_number?: string | null;
+    country?: string | null;
+    product_id: string;
+  },
+): Promise<{ ok: boolean; specs_count?: number; error?: string }> {
+  const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+
+  try {
+    await db.request(`products?id=eq.${params.product_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ai_research_status: "running" }),
+    });
+
+    const existingSpecs = await db.request(
+      `specs?product_id=eq.${params.product_id}&select=field_key,field_label`
+    ) as { field_key: string; field_label: string }[];
+
+    const searchName = params.model_number
+      ? `${params.product_name} (${params.model_number})`
+      : params.product_name;
+
+    const result = await withRetry(() =>
+      researchProductByName(
+        env.GEMINI_API_KEY,
+        searchName,
+        params.competitor_name,
+        existingSpecs.map((s) => ({ key: s.field_key, label: s.field_label })),
+      ),
+    );
+
+    if (!result || result.specs.length === 0) {
+      await db.request(`products?id=eq.${params.product_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ai_research_status: "failed" }),
+      });
+      return { ok: false, error: "No specs found via research" };
+    }
+
+    const existingKeys = new Set(existingSpecs.map((s) => s.field_key));
+    const newSpecs = result.specs
+      .filter((s) => !existingKeys.has(s.key))
+      .map((s) => ({
+        product_id: params.product_id,
+        field_key: s.key || s.label.toLowerCase().replace(/\s+/g, "_"),
+        field_label: s.label,
+        value: String(s.value),
+        source: "researched",
+      }));
+
+    if (newSpecs.length > 0) {
+      await db.insertSpecs(newSpecs);
+    }
+
+    await db.request(`products?id=eq.${params.product_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ai_research_status: "done" }),
+    });
+
+    return { ok: true, specs_count: newSpecs.length };
+  } catch (err) {
+    await db.request(`products?id=eq.${params.product_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ai_research_status: "failed" }),
+    }).catch(() => {});
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

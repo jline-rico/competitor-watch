@@ -1,4 +1,4 @@
-import { runPipeline, runSingle } from "./orchestrator";
+import { runPipeline, runSingle, runResearch } from "./orchestrator";
 import type { Env } from "./supabase";
 
 export default {
@@ -35,6 +35,29 @@ export default {
           );
         }
         const result = await runSingle(env, body);
+        return Response.json(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return Response.json({ error: message }, { status: 500 });
+      }
+    }
+
+    if (url.pathname === "/run-research" && request.method === "POST") {
+      try {
+        const body = await request.json() as {
+          competitor_name: string;
+          product_name: string;
+          model_number?: string | null;
+          country?: string | null;
+          product_id: string;
+        };
+        if (!body.product_name || !body.competitor_name || !body.product_id) {
+          return Response.json(
+            { error: "competitor_name, product_name, and product_id are required" },
+            { status: 400 },
+          );
+        }
+        const result = await runResearch(env, body);
         return Response.json(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
