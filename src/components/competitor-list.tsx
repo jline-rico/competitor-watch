@@ -212,13 +212,15 @@ export function CompetitorList() {
                       >
                         {editing?.id === c.id && editing.field === "country" ? (
                           <div className="flex items-center gap-1">
-                            <select
+                            <input
+                              list="settings-country-list"
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") saveEdit();
                                 if (e.key === "Escape") cancelEdit();
                               }}
+                              placeholder="국가 선택 또는 입력"
                               className="rounded px-1 py-0.5 text-sm"
                               style={{
                                 background: "var(--surface)",
@@ -226,12 +228,13 @@ export function CompetitorList() {
                                 color: "var(--text-primary)",
                                 outline: "none",
                               }}
-                            >
-                              <option value="">미분류</option>
+                              autoFocus
+                            />
+                            <datalist id="settings-country-list">
                               {COUNTRIES.map((ct) => (
-                                <option key={ct} value={ct}>{ct}</option>
+                                <option key={ct} value={ct} />
                               ))}
-                            </select>
+                            </datalist>
                             <button onClick={saveEdit} className="text-xs" style={{ color: "var(--success)" }}>✓</button>
                             <button onClick={cancelEdit} className="text-xs" style={{ color: "var(--text-tertiary)" }}>✕</button>
                           </div>
