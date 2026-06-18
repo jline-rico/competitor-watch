@@ -68,7 +68,7 @@ function EditableBrandName({
 
   if (editing) {
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
         <input
           ref={inputRef}
           type="text"
@@ -81,7 +81,7 @@ function EditableBrandName({
               setEditing(false);
             }
           }}
-          className="w-full px-1.5 py-0.5 text-xs"
+          className="px-1.5 py-0.5 text-xs"
           style={{
             borderRadius: "var(--radius-sm)",
             border: "1px solid var(--accent)",
@@ -92,24 +92,22 @@ function EditableBrandName({
           }}
           placeholder={currentName}
         />
-        <div className="flex gap-1">
-          <button
-            onClick={handleSave}
-            className="text-sm transition-colors"
-            style={{ color: "var(--success, #22c55e)" }}
-            title="저장"
-          >
-            ✓
-          </button>
-          <button
-            onClick={() => { setValue(shown); setEditing(false); }}
-            className="text-sm transition-colors"
-            style={{ color: "var(--text-tertiary)" }}
-            title="취소"
-          >
-            ✕
-          </button>
-        </div>
+        <button
+          onClick={handleSave}
+          className="text-sm transition-colors shrink-0"
+          style={{ color: "var(--success, #22c55e)" }}
+          title="저장"
+        >
+          ✓
+        </button>
+        <button
+          onClick={() => { setValue(shown); setEditing(false); }}
+          className="text-sm transition-colors shrink-0"
+          style={{ color: "var(--text-tertiary)" }}
+          title="취소"
+        >
+          ✕
+        </button>
       </div>
     );
   }
@@ -278,66 +276,62 @@ function EditableTablePrice({
 
   if (editing) {
     return (
-      <div className="flex flex-col gap-1.5" style={{ minWidth: 100 }}>
-        <div className="flex gap-1">
-          <input
-            ref={inputRef}
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") {
-                setPrice(product.price?.toString() ?? "");
-                setCurrency(product.currency);
-                setEditing(false);
-              }
-            }}
-            placeholder="가격"
-            className="w-20 px-1.5 py-0.5 text-xs"
-            style={{
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--accent)",
-              background: "var(--surface)",
-              outline: "none",
-            }}
-          />
-          <input
-            type="text"
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-            list="table-currency-list"
-            className="w-14 px-1 py-0.5 text-xs"
-            style={{
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--accent)",
-              background: "var(--surface)",
-              outline: "none",
-            }}
-          />
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={handleSave}
-            className="text-sm transition-colors"
-            style={{ color: "var(--success, #22c55e)" }}
-            title="저장"
-          >
-            ✓
-          </button>
-          <button
-            onClick={() => {
+      <div className="flex items-center gap-1" style={{ minWidth: 100 }}>
+        <input
+          ref={inputRef}
+          type="number"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") {
               setPrice(product.price?.toString() ?? "");
               setCurrency(product.currency);
               setEditing(false);
-            }}
-            className="text-sm transition-colors"
-            style={{ color: "var(--text-tertiary)" }}
-            title="취소"
-          >
-            ✕
-          </button>
-        </div>
+            }
+          }}
+          placeholder="가격"
+          className="w-20 px-1.5 py-0.5 text-xs"
+          style={{
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--accent)",
+            background: "var(--surface)",
+            outline: "none",
+          }}
+        />
+        <input
+          type="text"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+          list="table-currency-list"
+          className="w-14 px-1 py-0.5 text-xs"
+          style={{
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--accent)",
+            background: "var(--surface)",
+            outline: "none",
+          }}
+        />
+        <button
+          onClick={handleSave}
+          className="text-sm transition-colors shrink-0"
+          style={{ color: "var(--success, #22c55e)" }}
+          title="저장"
+        >
+          ✓
+        </button>
+        <button
+          onClick={() => {
+            setPrice(product.price?.toString() ?? "");
+            setCurrency(product.currency);
+            setEditing(false);
+          }}
+          className="text-sm transition-colors shrink-0"
+          style={{ color: "var(--text-tertiary)" }}
+          title="취소"
+        >
+          ✕
+        </button>
       </div>
     );
   }
