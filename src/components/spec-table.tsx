@@ -68,30 +68,49 @@ function EditableBrandName({
 
   if (editing) {
     return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={handleSave}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleSave();
-          if (e.key === "Escape") {
-            setValue(shown);
-            setEditing(false);
-          }
-        }}
-        className="w-full px-1.5 py-0.5 text-xs"
-        style={{
-          borderRadius: "var(--radius-sm)",
-          border: "1px solid var(--accent)",
-          background: "var(--surface)",
-          outline: "none",
-          minWidth: "60px",
-          color: "var(--text-secondary)",
-        }}
-        placeholder={currentName}
-      />
+      <div className="flex flex-col gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") {
+              setValue(shown);
+              setEditing(false);
+            }
+          }}
+          className="w-full px-1.5 py-0.5 text-xs"
+          style={{
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--accent)",
+            background: "var(--surface)",
+            outline: "none",
+            minWidth: "60px",
+            color: "var(--text-secondary)",
+          }}
+          placeholder={currentName}
+        />
+        <div className="flex gap-1">
+          <button
+            onClick={handleSave}
+            className="text-sm transition-colors"
+            style={{ color: "var(--success, #22c55e)" }}
+            title="저장"
+          >
+            ✓
+          </button>
+          <button
+            onClick={() => { setValue(shown); setEditing(false); }}
+            className="text-sm transition-colors"
+            style={{ color: "var(--text-tertiary)" }}
+            title="취소"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -654,7 +673,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
               <th className="w-8" />
               <th
                 className="px-4 py-2 text-left text-sm font-medium cursor-pointer select-none"
-                style={{ color: "var(--text-secondary)" }}
+                style={{ color: "var(--text-tertiary)" }}
                 onClick={() => handleHeaderClick("__product__")}
                 onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
@@ -674,6 +693,25 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
                   >
                     {p.name}
                   </p>
+                </th>
+              ))}
+            </tr>
+            {/* Fixed row: 출시국가 (제품명 바로 아래) */}
+            <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
+              <th className="w-8" />
+              <th
+                className="px-4 py-2 text-left text-sm font-medium whitespace-nowrap cursor-pointer select-none"
+                style={{ color: "var(--text-tertiary)" }}
+                onClick={() => handleHeaderClick("__country__")}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+              >
+                출시국가
+                <SortIndicator field="__country__" />
+              </th>
+              {sortedProducts.map((p) => (
+                <th key={p.id} className="px-4 py-2 text-left text-sm" style={{ color: "var(--text-secondary)", fontWeight: "normal" }}>
+                  {p.country || <span style={{ color: "var(--text-tertiary)" }}>-</span>}
                 </th>
               ))}
             </tr>
@@ -744,25 +782,6 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
                   </td>
                 );
               })}
-            </tr>
-            {/* Fixed row: 출시국가 */}
-            <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
-              <td className="w-8" />
-              <td
-                className="px-4 py-3 text-sm font-medium whitespace-nowrap cursor-pointer select-none"
-                style={{ color: "var(--text-secondary)" }}
-                onClick={() => handleHeaderClick("__country__")}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
-              >
-                출시국가
-                <SortIndicator field="__country__" />
-              </td>
-              {sortedProducts.map((p) => (
-                <td key={p.id} className="px-4 py-3 text-sm">
-                  {p.country || <span style={{ color: "var(--text-tertiary)" }}>-</span>}
-                </td>
-              ))}
             </tr>
             {visibleFieldIds ? (
               <>
