@@ -15,6 +15,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
+import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/format";
 import { useProducts } from "@/hooks/use-products";
 import { useSpecs } from "@/hooks/use-specs";
@@ -248,6 +249,7 @@ interface Props {
 }
 
 export function SpecTable({ category, sortField, sortDir, onSortChange, visibleFieldIds, onFieldsChange, brandFilter, countryFilter, onBrandFilterChange, onCountryFilterChange }: Props) {
+  const router = useRouter();
   const { products, loading: pLoading } = useProducts(category);
   const productIds = products.map((p) => p.id);
   const { specs, loading: sLoading } = useSpecs(productIds);
@@ -511,8 +513,10 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
           border: "1px solid var(--border)",
           background: "var(--surface)",
           boxShadow: "var(--shadow-sm)",
+          transform: "rotateX(180deg)",
         }}
       >
+        <div style={{ transform: "rotateX(180deg)" }}>
         <table className="w-full">
           <thead>
             <tr style={{ background: "var(--bg-warm)" }}>
@@ -541,22 +545,26 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
             <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-warm)" }}>
               <th className="w-8" />
               <th
-                className="px-4 py-2 text-left text-xs font-medium"
+                className="px-4 py-2 text-left text-xs font-medium cursor-pointer select-none"
                 style={{ color: "var(--text-tertiary)" }}
+                onClick={() => handleHeaderClick("__product__")}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
               >
                 제품명
+                <SortIndicator field="__product__" />
               </th>
               {sortedProducts.map((p) => (
                 <th key={p.id} className="px-4 py-2 text-left">
                   <p
                     className="text-sm font-semibold cursor-pointer select-none transition-colors"
                     style={{ color: "var(--text-primary)" }}
-                    onClick={() => handleHeaderClick("__product__")}
+                    onClick={() => router.push(`/product/${p.id}`)}
                     onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
+                    title="제품 상세 페이지로 이동"
                   >
                     {p.name}
-                    <SortIndicator field="__product__" />
                   </p>
                 </th>
               ))}
@@ -677,6 +685,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
             )}
           </tbody>
         </table>
+        </div>
       </div>
       <p className="mt-2.5 text-xs" style={{ color: "var(--text-tertiary)" }}>
         * = 리서치 출처 &nbsp;&nbsp; ⠿ = 드래그 순서변경/기타로 숨김 &nbsp;&nbsp; 셀 클릭 = 값 수정 &nbsp;&nbsp; 헤더 클릭 = 정렬

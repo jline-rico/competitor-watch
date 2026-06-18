@@ -6,10 +6,13 @@ import { useDisplayBrands } from "@/hooks/use-display-brands";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ProductFeed } from "@/components/product-feed";
 import { AddUrlModal } from "@/components/add-url-modal";
+import { ManualEntryModal } from "@/components/manual-entry-modal";
+import { CrawlStatusBar } from "@/components/crawl-status-bar";
 import { COUNTRIES, CATEGORIES } from "@/lib/constants";
 
 export default function Home() {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("");
   const [category, setCategory] = useState("");
@@ -69,28 +72,52 @@ export default function Home() {
             경쟁사 사이트 또는 개별 제품 페이지를 등록하세요
           </p>
         </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-md active:scale-[0.98]"
-          style={{
-            background: "var(--accent)",
-            boxShadow: "var(--shadow-sm)",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--accent-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "var(--accent)")
-          }
-        >
-          <span className="text-base leading-none">+</span>
-          추가
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAiModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-md active:scale-[0.98]"
+            style={{
+              background: "var(--accent)",
+              boxShadow: "var(--shadow-sm)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--accent-hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "var(--accent)")
+            }
+          >
+            <span className="text-base leading-none">🤖</span>
+            AI 크롤링 시키기
+          </button>
+          <button
+            onClick={() => setManualModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all hover:shadow-md active:scale-[0.98]"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border)";
+            }}
+          >
+            <span className="text-base leading-none">✏️</span>
+            직접 입력하기
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 animate-fade-in stagger-1">
+        <CrawlStatusBar />
       </div>
 
       {/* Filter bar */}
       <div
-        className="mt-6 flex items-center gap-3 animate-fade-in stagger-1"
+        className="mt-6 flex items-center gap-3 animate-fade-in stagger-2"
       >
         <div className="relative flex-1">
           <span
@@ -140,10 +167,11 @@ export default function Home() {
         </select>
       </div>
 
-      <div className="mt-4 animate-fade-in stagger-2">
+      <div className="mt-4 animate-fade-in stagger-3">
         <ProductFeed products={filtered} loading={loading} brands={brands} totalCount={products.length} />
       </div>
-      <AddUrlModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <AddUrlModal open={aiModalOpen} onClose={() => setAiModalOpen(false)} />
+      <ManualEntryModal open={manualModalOpen} onClose={() => setManualModalOpen(false)} />
     </>
   );
 }

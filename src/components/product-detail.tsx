@@ -5,7 +5,264 @@ import { useRouter } from "next/navigation";
 import { updateProduct, updateSpec, createSpec, deleteSpec, getKnownSpecKeys, getDisplayBrands, DISPLAY_BRAND_KEY } from "@/lib/queries";
 import type { Product, Spec, Competitor } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
-import { CURRENCIES } from "@/lib/constants";
+import { CURRENCIES, CATEGORIES, COUNTRIES } from "@/lib/constants";
+
+function EditableText({
+  value,
+  productId,
+  field,
+  placeholder,
+  className,
+  style,
+}: {
+  value: string | null;
+  productId: string;
+  field: string;
+  placeholder?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value || "");
+  const [display, setDisplay] = useState(value || "");
+
+  const save = async () => {
+    const trimmed = text.trim();
+    await updateProduct(productId, { [field]: trimmed || null });
+    setDisplay(trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className={`rounded border px-2 py-1 ${className || "text-sm"}`}
+          style={{ borderColor: "var(--accent)", minWidth: 150, ...style }}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") { setText(display); setEditing(false); }
+          }}
+        />
+        <button onClick={save} className="rounded px-2 py-0.5 text-xs font-medium text-white" style={{ background: "var(--accent)" }}>저장</button>
+        <button onClick={() => { setText(display); setEditing(false); }} className="rounded px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-100">취소</button>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`group inline-flex items-center gap-1 cursor-pointer hover:opacity-70 transition-opacity ${className || ""}`}
+      style={style}
+      onClick={() => { setText(display); setEditing(true); }}
+      title="클릭하여 수정"
+    >
+      {display || <span style={{ color: "var(--text-tertiary)" }}>{placeholder || "미입력"}</span>}
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="opacity-0 group-hover:opacity-50 transition-opacity shrink-0">
+        <path d="M11.5 2.5l2 2M2 11l-0.5 3.5L5 14l9-9-2-2-10 10z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </span>
+  );
+}
+
+function EditableSelect({
+  value,
+  productId,
+  field,
+  options,
+  placeholder,
+}: {
+  value: string | null;
+  productId: string;
+  field: string;
+  options: readonly string[];
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState(value || "");
+  const [display, setDisplay] = useState(value || "");
+
+  const save = async (v: string) => {
+    await updateProduct(productId, { [field]: v || null });
+    setDisplay(v);
+    setSelected(v);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <select
+          value={selected}
+          onChange={(e) => save(e.target.value)}
+          className="rounded border px-2 py-1 text-sm"
+          style={{ borderColor: "var(--accent)" }}
+          autoFocus
+          onBlur={() => setEditing(false)}
+        >
+          <option value="">{placeholder || "선택"}</option>
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="group inline-flex items-center gap-1 cursor-pointer rounded bg-gray-100 px-2 py-1 text-sm hover:bg-gray-200 transition-colors"
+      onClick={() => setEditing(true)}
+      title="클릭하여 변경"
+    >
+      {display || <span style={{ color: "var(--text-tertiary)" }}>{placeholder || "미선택"}</span>}
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="opacity-0 group-hover:opacity-50 transition-opacity">
+        <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </span>
+  );
+}
+
+function EditableCountry({
+  value,
+  productId,
+}: {
+  value: string | null;
+  productId: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value || "");
+  const [display, setDisplay] = useState(value || "");
+
+  const save = async () => {
+    const trimmed = text.trim();
+    await updateProduct(productId, { country: trimmed || null });
+    setDisplay(trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <input
+          list="detail-country-list"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="국가 선택 또는 입력"
+          className="rounded border px-2 py-1 text-sm"
+          style={{ borderColor: "var(--accent)", minWidth: 120 }}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") { setText(display); setEditing(false); }
+          }}
+        />
+        <datalist id="detail-country-list">
+          {COUNTRIES.map((c) => <option key={c} value={c} />)}
+        </datalist>
+        <button onClick={save} className="rounded px-2 py-0.5 text-xs font-medium text-white" style={{ background: "var(--accent)" }}>저장</button>
+        <button onClick={() => { setText(display); setEditing(false); }} className="rounded px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-100">취소</button>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="group inline-flex items-center gap-1 cursor-pointer rounded bg-gray-100 px-2 py-1 text-sm hover:bg-gray-200 transition-colors"
+      onClick={() => { setText(display); setEditing(true); }}
+      title="클릭하여 변경"
+    >
+      {display || <span style={{ color: "var(--text-tertiary)" }}>국가 미설정</span>}
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="opacity-0 group-hover:opacity-50 transition-opacity shrink-0">
+        <path d="M11.5 2.5l2 2M2 11l-0.5 3.5L5 14l9-9-2-2-10 10z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </span>
+  );
+}
+
+function EditableImage({
+  imageUrl,
+  productId,
+  productName,
+  onImageChange,
+}: {
+  imageUrl: string | null;
+  productId: string;
+  productName: string;
+  onImageChange: (url: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState(imageUrl || "");
+
+  const save = async () => {
+    const trimmed = url.trim() || null;
+    await updateProduct(productId, { image_url: trimmed });
+    onImageChange(trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div
+        className="mb-6 flex flex-col items-center justify-center gap-3 p-6"
+        style={{
+          background: "var(--bg-warm)",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--accent)",
+          minHeight: "200px",
+        }}
+      >
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="이미지 URL 입력"
+          className="w-full max-w-md px-3 py-2 text-sm"
+          style={{ borderRadius: "var(--radius-sm)", border: "1px solid var(--accent)", background: "var(--surface)" }}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") { setUrl(imageUrl || ""); setEditing(false); }
+          }}
+        />
+        <div className="flex gap-2">
+          <button onClick={save} className="rounded px-3 py-1 text-sm font-medium text-white" style={{ background: "var(--accent)" }}>저장</button>
+          <button onClick={() => { setUrl(imageUrl || ""); setEditing(false); }} className="rounded px-3 py-1 text-sm text-gray-500 hover:bg-gray-100">취소</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mb-6 flex items-center justify-center overflow-hidden cursor-pointer group relative"
+      style={{
+        background: "var(--bg-warm)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--border)",
+        height: "250px",
+      }}
+      onClick={() => { setUrl(imageUrl || ""); setEditing(true); }}
+      title="클릭하여 이미지 URL 수정"
+    >
+      {imageUrl ? (
+        <>
+          <img src={imageUrl} alt={productName} className="h-full w-full object-contain p-4" />
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(0,0,0,0.3)" }}>
+            <span className="text-white text-sm font-medium px-3 py-1.5 rounded-lg" style={{ background: "rgba(0,0,0,0.5)" }}>이미지 URL 수정</span>
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-5xl">📦</span>
+          <span className="text-sm" style={{ color: "var(--text-tertiary)" }}>클릭하여 이미지 URL 추가</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   product: Product & { competitor: Pick<Competitor, "id" | "name" | "logo_url"> };
@@ -387,6 +644,7 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
   const [knownKeys, setKnownKeys] = useState<{ field_key: string; field_label: string }[]>([]);
   const [displayBrand, setDisplayBrand] = useState<string | null>(null);
   const [currency, setCurrency] = useState(product.currency);
+  const [imageUrl, setImageUrl] = useState(product.image_url);
 
   useEffect(() => {
     getKnownSpecKeys().then(setKnownKeys);
@@ -422,61 +680,37 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
         </button>
       </div>
 
-      {/* Product image header */}
-      <div
-        className="mb-6 flex items-center justify-center overflow-hidden"
-        style={{
-          background: "var(--bg-warm)",
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--border)",
-          height: "250px",
-        }}
-      >
-        {product.image_url ? (
-          <img
-            src={product.image_url}
-            alt={product.name}
-            className="h-full w-full object-contain p-4"
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-5xl">📦</span>
-            <span className="text-sm" style={{ color: "var(--text-tertiary)" }}>
-              이미지 없음
-            </span>
-          </div>
-        )}
-      </div>
+      {/* Product image header — click to edit */}
+      <EditableImage
+        imageUrl={imageUrl}
+        productId={product.id}
+        productName={product.name}
+        onImageChange={setImageUrl}
+      />
 
       <div className="flex items-start gap-6">
         <div>
           <p className="text-sm text-gray-500">{displayBrand || product.competitor.name}</p>
-          <h1 className="text-2xl font-bold">{product.name}</h1>
-          {product.model_number && (
-            <p className="text-gray-500">{product.model_number}</p>
-          )}
-          <div className="mt-2 flex items-center gap-3">
+          <h1 className="text-2xl font-bold">
+            <EditableText value={product.name} productId={product.id} field="name" placeholder="제품명" className="text-2xl font-bold" />
+          </h1>
+          <EditableText value={product.model_number} productId={product.id} field="model_number" placeholder="모델번호 입력" className="text-gray-500" />
+          <div className="mt-2 flex items-center gap-3 flex-wrap">
             <EditablePrice
               value={product.price}
               currency={currency}
               productId={product.id}
               onCurrencyChange={setCurrency}
             />
-            <span className="rounded bg-gray-100 px-2 py-1 text-sm">{product.category}</span>
+            <EditableSelect value={product.category} productId={product.id} field="category" options={CATEGORIES} placeholder="카테고리" />
+            <EditableCountry value={product.country} productId={product.id} />
             {Date.now() - new Date(product.discovered_at).getTime() < 14 * 24 * 60 * 60 * 1000 && (
               <span className="rounded bg-red-500 px-2 py-0.5 text-xs font-bold text-white">신규</span>
             )}
           </div>
-          {product.product_url && (
-            <a
-              href={product.product_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-sm text-blue-600 hover:underline"
-            >
-              공식 페이지 보기 →
-            </a>
-          )}
+          <div className="mt-2">
+            <EditableText value={product.product_url} productId={product.id} field="product_url" placeholder="제품 페이지 URL 입력" className="text-sm text-blue-600" />
+          </div>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { Competitor, Product, Spec, SpecField } from "./types";
+import type { Competitor, Product, Spec, SpecField, CrawlLog } from "./types";
 
 // --- Competitors ---
 
@@ -147,7 +147,7 @@ export async function getSpecsForProducts(productIds: string[]) {
 
 export async function updateProduct(
   id: string,
-  fields: Partial<{ price: number | null; name: string; model_number: string | null; category: string; image_url: string | null; currency: string }>
+  fields: Partial<{ price: number | null; name: string; model_number: string | null; category: string; image_url: string | null; currency: string; country: string | null; product_url: string | null }>
 ) {
   const { error } = await supabase.from("products").update(fields).eq("id", id);
   if (error) throw error;
@@ -418,4 +418,112 @@ export async function mapSpecToField(
   category: string
 ) {
   return createSpecField(category, field_key, field_label);
+}
+
+// --- Manual Product Creation ---
+
+export async function createManualProduct(params: {
+  competitor_name: string;
+  name: string;
+  model_number?: string;
+  category: string;
+  country?: string;
+  price?: number;
+  currency?: string;
+  product_url?: string;
+  image_url?: string;
+  ai_research: boolean;
+  specs: { field_key: string; field_label: string; value: string }[];
+}) {
+  let competitor: Competitor;
+  const existing = await getCompetitors();
+  const match = existing.find(
+    (c) => c.name.toLowerCase() === params.competitor_name.toLowerCase()
+  );
+
+  if (match) {
+    competitor = match;
+  } else {
+    competitor = await createCompetitor(params.competitor_name, "", params.country);
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .insert({
+      competitor_id: competitor.id,
+      name: params.name,
+      model_number: params.model_number || null,
+      category: params.category,
+      country: params.country || competitor.country || null,
+      price: params.price || null,
+      currency: params.currency || "KRW",
+      product_url: params.product_url || null,
+      image_url: params.image_url || null,
+      source_type: "manual",
+      ai_research_status: params.ai_research ? "pending" : null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+
+  const filledSpecs = params.specs.filter((s) => s.value.trim());
+  if (filledSpecs.length > 0) {
+    const { error: specError } = await supabase.from("specs").insert(
+      filledSpecs.map((s) => ({
+        product_id: data.id,
+        field_key: s.field_key,
+        field_label: s.field_label,
+        value: s.value.trim(),
+        source: "official" as const,
+      }))
+    );
+    if (specError) throw specError;
+  }
+
+  return data as Product;
+}
+
+// --- Crawl Logs ---
+
+export async function getCrawlLogs(days = 7) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const { data, error } = await supabase
+    .from("crawl_logs")
+    .select("*, competitor:competitors(id, name)")
+    .gte("run_at", since.toISOString())
+    .order("run_at", { ascending: false });
+  if (error) throw error;
+  return data as (CrawlLog & { competitor: Pick<Competitor, "id" | "name"> })[];
+}
+
+export async function getLatestCrawlStatus() {
+  const today = new Date();
+  today.setHours(today.getHours() + 9);
+  const todayStr = today.toISOString().split("T")[0];
+
+  const { count } = await supabase
+    .from("crawl_logs")
+    .select("*", { count: "exact", head: true })
+    .gte("run_at", `${todayStr}T00:00:00+09:00`);
+
+  const { data: latest } = await supabase
+    .from("crawl_logs")
+    .select("run_at, competitor:competitors(name), error_message")
+    .order("run_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: pending } = await supabase
+    .from("products")
+    .select("id")
+    .in("ai_research_status", ["pending", "running"]);
+
+  return {
+    todayApiCalls: count || 0,
+    apiLimit: 1500,
+    latestRun: latest,
+    pendingResearch: pending?.length || 0,
+  };
 }

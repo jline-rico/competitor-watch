@@ -1,4 +1,5 @@
 import { CompetitorList } from "@/components/competitor-list";
+import { CrawlActivityLog } from "@/components/crawl-activity-log";
 import { FieldManager } from "@/components/field-manager";
 import { PinSettings } from "@/components/pin-settings";
 import { ScheduleConfig } from "@/components/schedule-config";
@@ -104,6 +105,28 @@ export default function SettingsPage() {
           </div>
           <div className="p-5">
             <FieldManager />
+          </div>
+        </section>
+
+        <section
+          className="animate-fade-in stagger-5"
+          style={{
+            background: "var(--surface)",
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div
+            className="px-5 py-4"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              크롤링 활동 로그
+            </h2>
+          </div>
+          <div className="p-5">
+            <CrawlActivityLog />
           </div>
         </section>
       </div>

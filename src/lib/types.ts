@@ -23,7 +23,8 @@ export interface Product {
   country: string | null;
   currency: string;
   is_new: boolean;
-  source_type: "monitored" | "one_time";
+  source_type: "monitored" | "one_time" | "manual";
+  ai_research_status: "pending" | "running" | "done" | "failed" | null;
   discovered_at: string;
   competitor?: Competitor;
 }
@@ -46,4 +47,18 @@ export interface SpecField {
   field_label: string;
   sort_order: number;
   is_visible: boolean;
+}
+
+export interface CrawlLog {
+  id: string;
+  competitor_id: string;
+  run_at: string;
+  catalog_crawl_ok: boolean;
+  products_found: number;
+  new_products: number;
+  specs_extracted: number;
+  specs_from_image: number;
+  specs_failed: number;
+  error_message: string | null;
+  duration_ms: number;
 }

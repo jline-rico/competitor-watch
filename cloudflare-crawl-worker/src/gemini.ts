@@ -132,3 +132,42 @@ category는 다음 중 하나: ${CATEGORIES.join(", ")}`;
     return null;
   }
 }
+
+export async function researchProductByName(
+  apiKey: string,
+  productName: string,
+  competitorName: string,
+  existingSpecs: { key: string; label: string }[],
+): Promise<ExtractedProduct | null> {
+  const specsToFill = existingSpecs.length > 0
+    ? `\n다음 항목을 중점적으로 찾아줘: ${existingSpecs.map((s) => s.label).join(", ")}`
+    : "";
+
+  const prompt = `너는 제품 리서치 전문가야.
+${competitorName}의 "${productName}" 제품에 대해 알려진 공식 스펙 정보를 정리해줘.${specsToFill}
+
+규칙:
+- 공식 사이트나 신뢰할 수 있는 출처의 정보만 사용
+- 확실하지 않은 정보는 포함하지 마
+- source 필드는 반드시 "researched"로 설정
+
+출력 (JSON만 반환):
+{
+  "name": "...",
+  "model": "...",
+  "category": "...",
+  "price": null,
+  "currency": null,
+  "image_url": null,
+  "specs": [{ "key": "...", "label": "...", "value": "..." }]
+}
+
+category는 다음 중 하나: ${CATEGORIES.join(", ")}`;
+
+  const text = await callGemini(apiKey, [{ parts: [{ text: prompt }] }]);
+  try {
+    return JSON.parse(text) as ExtractedProduct;
+  } catch {
+    return null;
+  }
+}
