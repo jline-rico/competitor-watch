@@ -20,6 +20,7 @@ export function AddUrlModal({ open, onClose }: Props) {
   const [submittedMode, setSubmittedMode] = useState<"competitor" | "product">("competitor");
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) getCompetitors().then(setCompetitors).catch(() => {});
@@ -38,8 +39,6 @@ export function AddUrlModal({ open, onClose }: Props) {
     if (c.country) setCountry(c.country);
     setShowSuggestions(false);
   };
-
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!name.trim() || !url.trim()) return;
