@@ -638,15 +638,15 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
         }}
       >
         <div style={{ transform: "rotateX(180deg)" }}>
-        <table className="w-full">
+        <table style={{ minWidth: `${132 + sortedProducts.length * 180}px` }}>
           <thead>
             <tr style={{ background: "var(--bg-warm)" }}>
               <th className="w-8" />
-              <th className="px-4 pt-4 pb-2 text-left text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+              <th className="px-4 pt-4 pb-2 text-left text-sm font-medium" style={{ color: "var(--text-secondary)", width: 100 }}>
                 제품 이미지
               </th>
               {sortedProducts.map((p) => (
-                <th key={p.id} className="px-4 pt-4 pb-2 text-center">
+                <th key={p.id} className="px-4 pt-4 pb-2 text-center" style={{ minWidth: 180 }}>
                   <EditableProductImage
                     product={{
                       ...p,
