@@ -646,43 +646,49 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
                 제품 이미지
               </th>
               {sortedProducts.map((p) => (
-                <th key={p.id} className="px-4 pt-4 pb-2 text-center group/product" style={{ minWidth: 180, position: "relative" }}>
-                  <button
-                    className="absolute top-1 right-1 opacity-0 group-hover/product:opacity-100 transition-opacity"
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      background: "var(--danger, #ef4444)",
-                      color: "#fff",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      lineHeight: "22px",
-                      zIndex: 10,
-                    }}
-                    title="제품 삭제"
-                    onClick={async () => {
-                      if (!confirm(`"${p.name}" 제품을 삭제하시겠습니까?\n관련 스펙 데이터도 함께 삭제됩니다.`)) return;
-                      await deleteProduct(p.id);
-                      mutateProducts();
-                    }}
-                  >
-                    ✕
-                  </button>
-                  <EditableProductImage
-                    product={{
-                      ...p,
-                      image_url: localImages.has(p.id) ? localImages.get(p.id)! : p.image_url,
-                    }}
-                    onImageChange={(id, url) => {
-                      setLocalImages((prev) => {
-                        const next = new Map(prev);
-                        next.set(id, url);
-                        return next;
-                      });
-                    }}
-                  />
+                <th key={p.id} className="px-4 pt-4 pb-2 text-center" style={{ minWidth: 180 }}>
+                  <div className="relative inline-block group/imgcell">
+                    <EditableProductImage
+                      product={{
+                        ...p,
+                        image_url: localImages.has(p.id) ? localImages.get(p.id)! : p.image_url,
+                      }}
+                      onImageChange={(id, url) => {
+                        setLocalImages((prev) => {
+                          const next = new Map(prev);
+                          next.set(id, url);
+                          return next;
+                        });
+                      }}
+                    />
+                    <button
+                      className="absolute opacity-0 group-hover/imgcell:opacity-100 transition-opacity"
+                      style={{
+                        top: -4,
+                        right: -4,
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        background: "var(--danger, #ef4444)",
+                        color: "#fff",
+                        border: "2px solid var(--surface, #fff)",
+                        cursor: "pointer",
+                        fontSize: 10,
+                        lineHeight: "16px",
+                        textAlign: "center",
+                        padding: 0,
+                      }}
+                      title="제품 삭제"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`"${p.name}" 제품을 삭제하시겠습니까?\n관련 스펙 데이터도 함께 삭제됩니다.`)) return;
+                        await deleteProduct(p.id);
+                        mutateProducts();
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </th>
               ))}
             </tr>
