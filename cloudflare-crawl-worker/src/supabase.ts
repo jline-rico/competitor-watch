@@ -44,7 +44,7 @@ export class SupabaseClient {
     private key: string,
   ) {}
 
-  private async request(path: string, options: RequestInit = {}) {
+  async request(path: string, options: RequestInit = {}) {
     const res = await fetch(`${this.url}/rest/v1/${path}`, {
       ...options,
       headers: {
