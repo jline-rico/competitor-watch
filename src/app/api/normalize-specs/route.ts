@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 const STANDARD_FIELDS: Record<string, { key: string; label: string }[]> = {
   도어락: [
@@ -104,6 +104,10 @@ const STANDARD_FIELDS: Record<string, { key: string; label: string }[]> = {
   ],
 };
 
+function getSupabase() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const category = url.searchParams.get("category");
@@ -115,6 +119,7 @@ export async function GET(request: Request) {
     );
   }
 
+  const supabase = getSupabase();
   const { data: specs, error } = await supabase
     .from("specs")
     .select("field_key, field_label, products!inner(category)")
