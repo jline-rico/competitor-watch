@@ -421,16 +421,24 @@ export async function POST() {
 
   for (const spec of allSpecs || []) {
     const mapping = MAP[spec.field_key];
-    if (mapping && mapping[0] !== spec.field_key) {
+    const needsKeyChange = mapping && mapping[0] !== spec.field_key;
+    const needsLabelChange = mapping && mapping[1] !== spec.field_label;
+    const hasComma = spec.value && spec.value.includes(",");
+    if (needsKeyChange || needsLabelChange || hasComma) {
+      const newKey = mapping ? mapping[0] : spec.field_key;
+      const newLabel = mapping ? mapping[1] : spec.field_label;
       let value = spec.value;
       if (value && value.includes(",")) {
         value = value.split(",").map((v: string) => v.trim()).filter(Boolean).sort().join(", ");
       }
-      const { error } = await supabase
-        .from("specs")
-        .update({ field_key: mapping[0], field_label: mapping[1], value })
-        .eq("id", spec.id);
-      if (!error) totalUpdated++;
+      const changed = newKey !== spec.field_key || newLabel !== spec.field_label || value !== spec.value;
+      if (changed) {
+        const { error } = await supabase
+          .from("specs")
+          .update({ field_key: newKey, field_label: newLabel, value })
+          .eq("id", spec.id);
+        if (!error) totalUpdated++;
+      }
     }
   }
 
