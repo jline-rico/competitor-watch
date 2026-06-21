@@ -21,7 +21,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useSpecs } from "@/hooks/use-specs";
 import { useSpecFields } from "@/hooks/use-spec-fields";
 import { useDisplayBrands } from "@/hooks/use-display-brands";
-import { setDisplayBrand, updateProduct } from "@/lib/queries";
+import { setDisplayBrand, updateProduct, deleteProduct } from "@/lib/queries";
 import { CURRENCIES } from "@/lib/constants";
 import { SpecRow } from "./spec-row";
 import { OtherSpecsSection } from "./other-specs-section";
@@ -370,7 +370,7 @@ interface Props {
 
 export function SpecTable({ category, sortField, sortDir, onSortChange, visibleFieldIds, onFieldsChange, brandFilter, countryFilter, onBrandFilterChange, onCountryFilterChange }: Props) {
   const router = useRouter();
-  const { products, loading: pLoading } = useProducts(category);
+  const { products, loading: pLoading, refetch: mutateProducts } = useProducts(category);
   const productIds = products.map((p) => p.id);
   const { specs, loading: sLoading } = useSpecs(productIds);
   const { brands, setBrands, loading: bLoading } = useDisplayBrands(productIds);
@@ -646,7 +646,30 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
                 제품 이미지
               </th>
               {sortedProducts.map((p) => (
-                <th key={p.id} className="px-4 pt-4 pb-2 text-center" style={{ minWidth: 180 }}>
+                <th key={p.id} className="px-4 pt-4 pb-2 text-center group/product" style={{ minWidth: 180, position: "relative" }}>
+                  <button
+                    className="absolute top-1 right-1 opacity-0 group-hover/product:opacity-100 transition-opacity"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: "var(--danger, #ef4444)",
+                      color: "#fff",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      lineHeight: "22px",
+                      zIndex: 10,
+                    }}
+                    title="제품 삭제"
+                    onClick={async () => {
+                      if (!confirm(`"${p.name}" 제품을 삭제하시겠습니까?\n관련 스펙 데이터도 함께 삭제됩니다.`)) return;
+                      await deleteProduct(p.id);
+                      mutateProducts();
+                    }}
+                  >
+                    ✕
+                  </button>
                   <EditableProductImage
                     product={{
                       ...p,

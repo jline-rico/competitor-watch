@@ -12,14 +12,16 @@ export function useProducts(category?: string) {
   const [products, setProducts] = useState<ProductWithCompetitor[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refetch = () => {
     setLoading(true);
     getProducts(category)
       .then(setProducts)
       .finally(() => setLoading(false));
-  }, [category]);
+  };
 
-  return { products, loading };
+  useEffect(refetch, [category]);
+
+  return { products, loading, refetch };
 }
 
 export function useNewProducts() {

@@ -159,6 +159,12 @@ export async function updateProduct(
   if (error) throw error;
 }
 
+export async function deleteProduct(id: string) {
+  await supabase.from("specs").delete().eq("product_id", id);
+  const { error } = await supabase.from("products").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteSpec(id: string) {
   const { error } = await supabase.from("specs").delete().eq("id", id);
   if (error) throw error;

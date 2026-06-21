@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateProduct, updateSpec, createSpec, deleteSpec, getKnownSpecKeys, getDisplayBrands, getCompetitors, DISPLAY_BRAND_KEY } from "@/lib/queries";
+import { updateProduct, updateSpec, createSpec, deleteSpec, deleteProduct, getKnownSpecKeys, getDisplayBrands, getCompetitors, DISPLAY_BRAND_KEY } from "@/lib/queries";
 import type { Product, Spec, Competitor } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { CURRENCIES, CATEGORIES, COUNTRIES } from "@/lib/constants";
@@ -746,7 +746,18 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex justify-between items-center">
+        <button
+          onClick={async () => {
+            if (!confirm(`"${product.name}" 제품을 삭제하시겠습니까?\n관련 스펙 데이터도 함께 삭제됩니다.`)) return;
+            await deleteProduct(product.id);
+            router.push("/compare");
+          }}
+          className="flex items-center gap-1.5 text-sm font-medium transition-colors hover:opacity-70"
+          style={{ color: "var(--danger, #ef4444)" }}
+        >
+          제품 삭제
+        </button>
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm font-medium transition-colors hover:opacity-70"
