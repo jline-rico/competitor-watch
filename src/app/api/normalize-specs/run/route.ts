@@ -406,6 +406,43 @@ const SPEC_FIELDS: Record<string, { key: string; label: string; visible?: boolea
   ],
 };
 
+// Standard label for keys that are already correct but may have wrong labels
+const LABEL_FIX: Record<string, string> = {
+  unlock_method: "잠금해제 방식",
+  connectivity: "연결 방식",
+  smart_home_platform: "스마트홈 플랫폼",
+  material: "소재",
+  color: "색상",
+  dimensions: "크기",
+  weight: "무게",
+  power: "전원",
+  battery_type: "배터리 종류",
+  battery_life: "배터리 수명",
+  emergency_power: "비상 전원",
+  door_thickness: "도어 두께",
+  backset: "백셋",
+  ip_rating: "방수방진 등급",
+  operating_temp: "사용 온도",
+  auto_lock: "자동잠금",
+  remote_control: "원격 제어",
+  security_grade: "보안 등급",
+  installation_type: "설치 방식",
+  certification: "인증",
+  fingerprint_capacity: "지문 등록 수",
+  fingerprint_speed: "지문 인식 속도",
+  camera: "카메라",
+  alarm: "알림/경보",
+  additional_features: "부가기능",
+  model_info: "모델 정보",
+  night_vision: "야간촬영",
+  resolution: "해상도",
+  fov: "화각",
+  ai_detection: "AI 감지",
+  storage: "저장 방식",
+  max_devices: "최대 기기 수",
+  sensor_type: "센서 종류",
+};
+
 export async function POST() {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
   const results: string[] = [];
@@ -421,12 +458,13 @@ export async function POST() {
 
   for (const spec of allSpecs || []) {
     const mapping = MAP[spec.field_key];
+    const correctLabel = LABEL_FIX[spec.field_key];
     const needsKeyChange = mapping && mapping[0] !== spec.field_key;
-    const needsLabelChange = mapping && mapping[1] !== spec.field_label;
+    const needsLabelChange = (mapping && mapping[1] !== spec.field_label) || (correctLabel && correctLabel !== spec.field_label);
     const hasComma = spec.value && spec.value.includes(",");
     if (needsKeyChange || needsLabelChange || hasComma) {
       const newKey = mapping ? mapping[0] : spec.field_key;
-      const newLabel = mapping ? mapping[1] : spec.field_label;
+      const newLabel = mapping ? mapping[1] : (correctLabel || spec.field_label);
       let value = spec.value;
       if (value && value.includes(",")) {
         value = value.split(",").map((v: string) => v.trim()).filter(Boolean).sort().join(", ");
