@@ -79,6 +79,34 @@ export class SupabaseClient {
     }) as Promise<{ id: string }[]>;
   }
 
+  async findExistingProduct(
+    competitorId: string,
+    productUrl: string,
+    modelNumber: string | null,
+  ): Promise<{ id: string; specs_source: string | null } | null> {
+    // Match by URL first
+    const byUrl = await this.request(
+      `products?competitor_id=eq.${competitorId}&product_url=eq.${encodeURIComponent(productUrl)}&select=id,specs_source&limit=1`,
+    ) as { id: string; specs_source: string | null }[];
+    if (byUrl.length > 0) return byUrl[0];
+
+    // Fallback: match by model_number
+    if (modelNumber) {
+      const byModel = await this.request(
+        `products?competitor_id=eq.${competitorId}&model_number=eq.${encodeURIComponent(modelNumber)}&select=id,specs_source&limit=1`,
+      ) as { id: string; specs_source: string | null }[];
+      if (byModel.length > 0) return byModel[0];
+    }
+
+    return null;
+  }
+
+  async getExistingSpecs(productId: string): Promise<{ field_key: string }[]> {
+    return this.request(
+      `specs?product_id=eq.${productId}&select=field_key`,
+    ) as Promise<{ field_key: string }[]>;
+  }
+
   async insertSpecs(specs: Record<string, unknown>[]): Promise<void> {
     if (specs.length === 0) return;
     await this.request("specs", {

@@ -198,7 +198,7 @@ export async function runSingle(
     country?: string | null;
     competitor_id?: string | null;
   },
-): Promise<{ ok: boolean; product_id?: string; specs_count?: number; specs_source?: string; tokens_used?: number; error?: string }> {
+): Promise<{ ok: boolean; product_id?: string; specs_count?: number; specs_source?: string; tokens_used?: number; error?: string; updated?: boolean; note?: string }> {
   resetTokensUsed();
   const start = Date.now();
   const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
@@ -281,36 +281,75 @@ export async function runSingle(
       return { ok: false, error: log.error_message };
     }
 
-    const [saved] = await db.insertProduct({
-      name: extracted.name || params.competitor_name,
-      model_number: extracted.model || null,
-      category: extracted.category || "기타",
-      product_url: params.product_url,
-      image_url: extracted.image_url || null,
-      price: extracted.price || null,
-      currency: extracted.currency || (params.country === "한국" ? "KRW" : "USD"),
-      country: params.country || null,
-      competitor_id: competitorId,
-      source_type: "one_time",
-      specs_source: specsSource,
-    });
+    // Check if product already exists (same URL or model_number)
+    const existing = await db.findExistingProduct(
+      competitorId,
+      params.product_url,
+      extracted.model || null,
+    );
 
-    log.new_products = 1;
+    let productId: string;
+    let isUpdate = false;
 
-    if (saved && extracted.specs.length > 0) {
-      const specs = extracted.specs.map((s) => ({
-        product_id: saved.id,
-        field_key: s.key || s.label.toLowerCase().replace(/\s+/g, "_"),
-        field_label: s.label,
-        value: String(s.value),
-        source: "official",
-      }));
-      await db.insertSpecs(specs);
-      log.specs_extracted = specs.length;
-      return { ok: true, product_id: saved.id, specs_count: specs.length, specs_source: specsSource, tokens_used: getTokensUsed() };
+    if (existing) {
+      productId = existing.id;
+      isUpdate = true;
+      // Update product metadata if we got better data
+      await db.request(`products?id=eq.${productId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...(extracted.image_url ? { image_url: extracted.image_url } : {}),
+          ...(extracted.price ? { price: extracted.price } : {}),
+          ...(extracted.currency ? { currency: extracted.currency } : {}),
+          specs_source: specsSource,
+        }),
+      });
+    } else {
+      const [saved] = await db.insertProduct({
+        name: extracted.name || params.competitor_name,
+        model_number: extracted.model || null,
+        category: extracted.category || "기타",
+        product_url: params.product_url,
+        image_url: extracted.image_url || null,
+        price: extracted.price || null,
+        currency: extracted.currency || (params.country === "한국" ? "KRW" : "USD"),
+        country: params.country || null,
+        competitor_id: competitorId,
+        source_type: "one_time",
+        specs_source: specsSource,
+      });
+      productId = saved.id;
+      log.new_products = 1;
     }
 
-    return { ok: true, product_id: saved?.id, specs_count: 0, specs_source: specsSource, tokens_used: getTokensUsed() };
+    if (extracted.specs.length > 0) {
+      // Get existing specs to avoid duplicates
+      const existingSpecs = isUpdate
+        ? await db.getExistingSpecs(productId)
+        : [];
+      const existingKeys = new Set(existingSpecs.map((s) => s.field_key));
+
+      const newSpecs = extracted.specs
+        .map((s) => ({
+          product_id: productId,
+          field_key: s.key || s.label.toLowerCase().replace(/\s+/g, "_"),
+          field_label: s.label,
+          value: String(s.value),
+          source: "official",
+        }))
+        .filter((s) => !existingKeys.has(s.field_key));
+
+      if (newSpecs.length > 0) {
+        await db.insertSpecs(newSpecs);
+      }
+      log.specs_extracted = newSpecs.length;
+      const note = isUpdate
+        ? `기존 제품 보완: +${newSpecs.length}개 스펙 추가 (기존 ${existingKeys.size}개)`
+        : undefined;
+      return { ok: true, product_id: productId, specs_count: newSpecs.length, specs_source: specsSource, tokens_used: getTokensUsed(), updated: isUpdate, note };
+    }
+
+    return { ok: true, product_id: productId, specs_count: 0, specs_source: specsSource, tokens_used: getTokensUsed(), updated: isUpdate };
   } catch (err) {
     log.error_message = err instanceof Error ? err.message : String(err);
     log.specs_failed = 1;
