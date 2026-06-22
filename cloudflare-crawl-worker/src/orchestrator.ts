@@ -70,7 +70,7 @@ async function processCompetitor(
     // Step 2: Validate HTML has product content
     if (!hasProductLinks(trimmed)) {
       log.error_message =
-        "No product links found in catalog HTML - skipping Gemini call";
+        `Catalog HTML too short after trimming (${trimmed.length} chars) - skipping Gemini call`;
       return log;
     }
 

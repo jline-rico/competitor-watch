@@ -33,6 +33,5 @@ export function trimHtml(html: string): string {
 }
 
 export function hasProductLinks(html: string): boolean {
-  const linkCount = (html.match(/<a\s[^>]*href/gi) || []).length;
-  return linkCount >= 3;
+  return html.length > 500;
 }
