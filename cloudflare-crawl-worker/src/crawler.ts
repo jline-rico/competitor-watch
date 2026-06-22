@@ -7,6 +7,9 @@ const DEFAULT_CONFIG: Required<CrawlConfig> = {
   scrollDelay: 1000,
 };
 
+const REALISTIC_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 export interface CrawlResult {
   ok: boolean;
   html: string;
@@ -29,8 +32,14 @@ export async function crawlPage(
     browser = await puppeteer.launch(browserBinding);
     const page = await browser.newPage();
 
+    await page.setUserAgent(REALISTIC_UA);
     await page.setViewport({ width: 1280, height: 900 });
-    await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+
+    try {
+      await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
+    } catch {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    }
     await page.waitForTimeout(cfg.waitFor);
 
     if (cfg.scrollToBottom) {
