@@ -26,6 +26,7 @@ export interface Product {
   source_type: "monitored" | "one_time" | "manual";
   ai_research_status: "pending" | "running" | "done" | "failed" | null;
   discovered_at: string;
+  updated_at: string;
   competitor?: Competitor;
 }
 

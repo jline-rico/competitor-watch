@@ -294,7 +294,7 @@ export async function runSingle(
     if (existing) {
       productId = existing.id;
       isUpdate = true;
-      // Update product metadata if we got better data
+      // Update product metadata and timestamp
       await db.request(`products?id=eq.${productId}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -302,6 +302,7 @@ export async function runSingle(
           ...(extracted.price ? { price: extracted.price } : {}),
           ...(extracted.currency ? { currency: extracted.currency } : {}),
           specs_source: specsSource,
+          updated_at: new Date().toISOString(),
         }),
       });
     } else {

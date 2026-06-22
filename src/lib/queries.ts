@@ -111,7 +111,7 @@ export async function getProducts(category?: string) {
   let query = supabase
     .from("products")
     .select("*, competitor:competitors(id, name, logo_url)")
-    .order("discovered_at", { ascending: false });
+    .order("updated_at", { ascending: false });
 
   if (category) {
     query = query.eq("category", category);
@@ -127,7 +127,7 @@ export async function getNewProducts() {
     .from("products")
     .select("*, competitor:competitors(id, name, logo_url)")
     .eq("is_new", true)
-    .order("discovered_at", { ascending: false });
+    .order("updated_at", { ascending: false });
   if (error) throw error;
   return data as (Product & { competitor: Pick<Competitor, "id" | "name" | "logo_url"> })[];
 }

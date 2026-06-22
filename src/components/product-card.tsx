@@ -11,11 +11,14 @@ interface Props {
 
 export function ProductCard({ product, displayBrand }: Props) {
   const discoveredDate = new Date(product.discovered_at);
+  const updatedDate = new Date(product.updated_at);
   const dateStr = discoveredDate.toLocaleDateString("ko-KR", {
     month: "numeric",
     day: "numeric",
   });
   const isRecent = Date.now() - discoveredDate.getTime() < 14 * 24 * 60 * 60 * 1000;
+  const isUpdated = updatedDate.getTime() - discoveredDate.getTime() > 60_000
+    && Date.now() - updatedDate.getTime() < 14 * 24 * 60 * 60 * 1000;
 
   return (
     <Link href={`/product/${product.id}`} className="block group">
@@ -53,14 +56,21 @@ export function ProductCard({ product, displayBrand }: Props) {
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {isRecent && (
+            {isUpdated ? (
+              <span
+                className="rounded px-1.5 py-0.5 text-xs font-bold text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                보강
+              </span>
+            ) : isRecent ? (
               <span
                 className="rounded px-1.5 py-0.5 text-xs font-bold text-white"
                 style={{ background: "var(--danger)" }}
               >
                 신규
               </span>
-            )}
+            ) : null}
             <span className="text-xs font-medium" style={{ color: "var(--text-tertiary)" }}>
               {displayBrand || product.competitor.name}
             </span>
