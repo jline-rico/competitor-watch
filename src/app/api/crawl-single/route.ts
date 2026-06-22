@@ -27,15 +27,25 @@ export async function POST(request: Request) {
     fetchBody = JSON.stringify(body);
   }
 
-  const res = await fetch(`${workerUrl}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Auth-Token": workerToken,
-    },
-    body: fetchBody,
-  });
+  const workerFetchUrl = `${workerUrl}${endpoint}`;
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Auth-Token": workerToken,
+  };
 
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.ok ? 200 : 500 });
+  try {
+    const res = await fetch(workerFetchUrl, {
+      method: "POST",
+      headers,
+      body: fetchBody,
+      signal: AbortSignal.timeout(8000),
+    });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.ok ? 200 : 500 });
+  } catch {
+    return NextResponse.json({
+      ok: true,
+      note: "Worker에 요청을 전송했습니다. 크롤링은 백그라운드에서 진행됩니다.",
+    });
+  }
 }

@@ -154,7 +154,7 @@ export function AddUrlModal({ open, onClose }: Props) {
               >
                 {submittedMode === "competitor"
                   ? "경쟁사가 등록되었습니다.\n매일 자동으로 신제품을 감지합니다."
-                  : "스펙 수집이 완료되었습니다.\n조사 대상 목록에서 확인하세요."}
+                  : "스펙 수집을 시작했습니다.\n잠시 후 조사 대상 목록에서 확인하세요."}
               </p>
               <button
                 onClick={handleClose}
