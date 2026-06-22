@@ -263,7 +263,7 @@ export async function runSingle(
       currency: extracted.currency || (params.country === "한국" ? "KRW" : "USD"),
       country: params.country || null,
       competitor_id: competitorId,
-      source_type: "single",
+      source_type: "one_time",
       specs_source: specsSource,
     });
 
