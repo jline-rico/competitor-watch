@@ -42,6 +42,24 @@ export async function crawlPage(
     }
     await page.waitForTimeout(cfg.waitFor);
 
+    // Click spec/detail tabs to reveal hidden content (Samsung, etc.)
+    try {
+      await page.evaluate(() => {
+        const keywords = ["스펙", "제품사양", "사양", "상세정보", "spec", "specification", "details"];
+        const candidates = document.querySelectorAll("a, button, [role='tab'], li[class*='tab'], span[class*='tab']");
+        for (const el of candidates) {
+          const text = (el as HTMLElement).textContent?.trim().toLowerCase() || "";
+          if (keywords.some((kw) => text === kw || text === kw + "s")) {
+            (el as HTMLElement).click();
+            break;
+          }
+        }
+      });
+      await page.waitForTimeout(2000);
+    } catch {
+      // tab click is best-effort
+    }
+
     if (cfg.scrollToBottom) {
       let prevHeight = 0;
       for (let i = 0; i < 20; i++) {

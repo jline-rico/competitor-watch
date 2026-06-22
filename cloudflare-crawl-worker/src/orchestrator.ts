@@ -200,57 +200,85 @@ export async function runSingle(
   },
 ): Promise<{ ok: boolean; product_id?: string; specs_count?: number; specs_source?: string; tokens_used?: number; error?: string }> {
   resetTokensUsed();
+  const start = Date.now();
   const db = new SupabaseClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
 
+  // Resolve competitor first for logging
+  let competitorId = params.competitor_id || null;
+  if (!competitorId) {
+    const competitors = await db.getActiveCompetitors();
+    const match = competitors.find(
+      (c) => c.name.toLowerCase() === params.competitor_name.toLowerCase(),
+    );
+    competitorId = match?.id || null;
+  }
+
+  if (!competitorId) {
+    return { ok: false, error: `Competitor "${params.competitor_name}" not found` };
+  }
+
+  const log: CrawlLog = {
+    competitor_id: competitorId,
+    catalog_crawl_ok: true,
+    products_found: 1,
+    new_products: 0,
+    specs_extracted: 0,
+    specs_from_image: 0,
+    specs_failed: 0,
+    error_message: null,
+    duration_ms: 0,
+    tokens_used: 0,
+  };
+
   try {
+    // Single crawl: get HTML + screenshot together, with scroll for lazy-loaded content
     const detailResult = await withRetry(() =>
-      crawlPage(env.BROWSER, params.product_url, { waitFor: 5000 }),
+      crawlPage(env.BROWSER, params.product_url, {
+        waitFor: 5000,
+        scrollToBottom: true,
+        scrollDelay: 500,
+      }, true),
     );
 
     if (!detailResult.ok) {
-      return { ok: false, error: `Crawl failed: ${detailResult.error}` };
+      log.catalog_crawl_ok = false;
+      log.error_message = `Crawl failed: ${detailResult.error}`;
+      log.specs_failed = 1;
+      return { ok: false, error: log.error_message };
     }
 
     const detailTrimmed = trimHtml(detailResult.html);
-    let extracted = await withRetry(() =>
+    const textExtracted = await withRetry(() =>
       extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed),
     );
+    let extracted = textExtracted;
     let specsSource = "official_text";
 
-    if (!extracted || extracted.specs.length < SPEC_THRESHOLD) {
-      const ssResult = await crawlPage(
-        env.BROWSER,
-        params.product_url,
-        { waitFor: 3000 },
-        true,
+    if ((!extracted || extracted.specs.length < SPEC_THRESHOLD) && detailResult.screenshot) {
+      const visionResult = await withRetry(() =>
+        extractSpecsFromImage(env.GEMINI_API_KEY, detailResult.screenshot!),
       );
+      if (visionResult && visionResult.specs.length > (extracted?.specs.length || 0)) {
+        extracted = visionResult;
+        specsSource = "official_image";
+        log.specs_from_image = 1;
 
-      if (ssResult.ok && ssResult.screenshot) {
-        const visionResult = await withRetry(() =>
-          extractSpecsFromImage(env.GEMINI_API_KEY, ssResult.screenshot!),
-        );
-        if (visionResult && visionResult.specs.length > (extracted?.specs.length || 0)) {
-          extracted = visionResult;
-          specsSource = "official_image";
+        // Merge unique specs from text extraction
+        if (textExtracted && textExtracted.specs.length > 0) {
+          const imageKeys = new Set(extracted.specs.map((s) => s.key));
+          const extraSpecs = textExtracted.specs.filter((s) => !imageKeys.has(s.key));
+          if (extraSpecs.length > 0) {
+            extracted.specs.push(...extraSpecs);
+            specsSource = "official_mixed";
+          }
         }
       }
     }
 
     if (!extracted) {
-      return { ok: false, error: "Failed to extract specs from page" };
-    }
-
-    let competitorId = params.competitor_id;
-    if (!competitorId) {
-      const competitors = await db.getActiveCompetitors();
-      const match = competitors.find(
-        (c) => c.name.toLowerCase() === params.competitor_name.toLowerCase(),
-      );
-      competitorId = match?.id || null;
-    }
-
-    if (!competitorId) {
-      return { ok: false, error: `Competitor "${params.competitor_name}" not found` };
+      log.specs_failed = 1;
+      log.error_message = "Failed to extract specs from page";
+      return { ok: false, error: log.error_message };
     }
 
     const [saved] = await db.insertProduct({
@@ -267,6 +295,8 @@ export async function runSingle(
       specs_source: specsSource,
     });
 
+    log.new_products = 1;
+
     if (saved && extracted.specs.length > 0) {
       const specs = extracted.specs.map((s) => ({
         product_id: saved.id,
@@ -276,12 +306,19 @@ export async function runSingle(
         source: "official",
       }));
       await db.insertSpecs(specs);
+      log.specs_extracted = specs.length;
       return { ok: true, product_id: saved.id, specs_count: specs.length, specs_source: specsSource, tokens_used: getTokensUsed() };
     }
 
     return { ok: true, product_id: saved?.id, specs_count: 0, specs_source: specsSource, tokens_used: getTokensUsed() };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err), tokens_used: getTokensUsed() };
+    log.error_message = err instanceof Error ? err.message : String(err);
+    log.specs_failed = 1;
+    return { ok: false, error: log.error_message, tokens_used: getTokensUsed() };
+  } finally {
+    log.duration_ms = Date.now() - start;
+    log.tokens_used = getTokensUsed();
+    await db.insertCrawlLog(log).catch(() => {});
   }
 }
 
