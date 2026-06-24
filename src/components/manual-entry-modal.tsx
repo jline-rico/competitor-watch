@@ -97,22 +97,14 @@ export function ManualEntryModal({ open, onClose }: Props) {
     setError(null);
 
     try {
-      const configRes = await fetch("/api/worker-config");
-      const { url: workerUrl, token: workerToken } = await configRes.json();
-
-      const res = await fetch(`${workerUrl}/run-single`, {
+      const res = await fetch("/api/crawl-single", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Auth-Token": workerToken,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           competitor_name: competitorName.trim(),
-          competitor_id: competitors.find(c => c.name === competitorName.trim())?.id || null,
           product_url: productUrl.trim(),
           country: country || null,
         }),
-        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
 
@@ -148,23 +140,13 @@ export function ManualEntryModal({ open, onClose }: Props) {
     if (!crawledProductId) return;
     setAiResearching(true);
     try {
-      const configRes = await fetch("/api/worker-config");
-      const { url: workerUrl, token: workerToken } = await configRes.json();
-
-      const res = await fetch(`${workerUrl}/run-research`, {
+      const res = await fetch("/api/crawl-single", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Auth-Token": workerToken,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          competitor_name: competitorName.trim(),
-          product_name: productName.trim(),
-          model_number: modelNumber.trim() || null,
-          country: country || null,
           product_id: crawledProductId,
+          research: true,
         }),
-        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
       if (data.ok) {
