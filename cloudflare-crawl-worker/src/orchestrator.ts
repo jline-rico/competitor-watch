@@ -412,8 +412,15 @@ export async function runResearch(
     });
 
     const existingSpecs = await db.request(
-      `specs?product_id=eq.${params.product_id}&select=field_key,field_label`
-    ) as { field_key: string; field_label: string }[];
+      `specs?product_id=eq.${params.product_id}&select=id,field_key,field_label,value`
+    ) as { id: string; field_key: string; field_label: string; value: string }[];
+
+    const emptySpecs = existingSpecs.filter((s) => !s.value || s.value.trim() === "");
+
+    const product = await db.request(
+      `products?id=eq.${params.product_id}&select=price,currency`
+    ) as { price: number | null; currency: string | null }[];
+    const needsPrice = !product[0]?.price;
 
     const searchName = params.model_number
       ? `${params.product_name} (${params.model_number})`
@@ -424,39 +431,44 @@ export async function runResearch(
         env.GEMINI_API_KEY,
         searchName,
         params.competitor_name,
-        existingSpecs.map((s) => ({ key: s.field_key, label: s.field_label })),
+        emptySpecs.map((s) => ({ key: s.field_key, label: s.field_label })),
+        needsPrice,
       ),
     );
 
-    if (!result || result.specs.length === 0) {
+    if (!result) {
       await db.request(`products?id=eq.${params.product_id}`, {
         method: "PATCH",
         body: JSON.stringify({ ai_research_status: "failed" }),
       });
-      return { ok: false, error: "No specs found via research" };
+      return { ok: false, error: "No results from research" };
     }
 
-    const existingKeys = new Set(existingSpecs.map((s) => s.field_key));
-    const newSpecs = result.specs
-      .filter((s) => !existingKeys.has(s.key))
-      .map((s) => ({
-        product_id: params.product_id,
-        field_key: s.key || s.label.toLowerCase().replace(/\s+/g, "_"),
-        field_label: s.label,
-        value: String(s.value),
-        source: "researched",
-      }));
-
-    if (newSpecs.length > 0) {
-      await db.insertSpecs(newSpecs);
+    let filledCount = 0;
+    for (const emptySpec of emptySpecs) {
+      const match = result.specs.find(
+        (s) => s.key === emptySpec.field_key || s.label === emptySpec.field_label,
+      );
+      if (match && match.value) {
+        await db.request(`specs?id=eq.${emptySpec.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ value: String(match.value), source: "researched" }),
+        });
+        filledCount++;
+      }
     }
 
+    const productUpdate: Record<string, unknown> = { ai_research_status: "done" };
+    if (needsPrice && result.price) {
+      productUpdate.price = result.price;
+      if (result.currency) productUpdate.currency = result.currency;
+    }
     await db.request(`products?id=eq.${params.product_id}`, {
       method: "PATCH",
-      body: JSON.stringify({ ai_research_status: "done" }),
+      body: JSON.stringify(productUpdate),
     });
 
-    return { ok: true, specs_count: newSpecs.length, tokens_used: getTokensUsed() };
+    return { ok: true, specs_count: filledCount, tokens_used: getTokensUsed() };
   } catch (err) {
     await db.request(`products?id=eq.${params.product_id}`, {
       method: "PATCH",

@@ -762,6 +762,15 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
         if (updatedSpecs) {
           setSpecs(updatedSpecs.filter((s: Spec) => s.field_key !== DISPLAY_BRAND_KEY));
         }
+        const { data: updatedProduct } = await supabase
+          .from("products")
+          .select("price, currency")
+          .eq("id", product.id)
+          .single();
+        if (updatedProduct?.price) {
+          product.price = updatedProduct.price;
+          if (updatedProduct.currency) setCurrency(updatedProduct.currency);
+        }
       }
     } catch (e) {
       console.error("AI research failed:", e);

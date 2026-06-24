@@ -318,27 +318,24 @@ export async function researchProductByName(
   apiKey: string,
   productName: string,
   competitorName: string,
-  existingSpecs: { key: string; label: string }[],
+  emptySpecs: { key: string; label: string }[],
+  needsPrice = false,
 ): Promise<ExtractedProduct | null> {
-  const specsToFill = existingSpecs.length > 0
-    ? `\n다음 항목을 중점적으로 찾아줘: ${existingSpecs.map((s) => s.label).join(", ")}`
+  const specsRequest = emptySpecs.length > 0
+    ? `\n다음 항목의 값을 반드시 찾아서 채워줘:\n${emptySpecs.map((s) => `- ${s.label} (key: ${s.key})`).join("\n")}`
+    : "\n이 제품의 주요 스펙을 찾아줘.";
+
+  const priceRequest = needsPrice
+    ? "\n가격 정보도 반드시 찾아줘 (price, currency 필드)."
     : "";
 
   const prompt = `너는 제품 리서치 전문가야.
-${competitorName}의 "${productName}" 제품에 대해 알려진 공식 스펙 정보를 정리해줘.${specsToFill}
+${competitorName}의 "${productName}" 제품에 대해 웹 검색으로 스펙 정보를 찾아줘.${specsRequest}${priceRequest}
 
 규칙:
 - 공식 사이트나 신뢰할 수 있는 출처의 정보만 사용
 - 확실하지 않은 정보는 포함하지 마
-
-스펙 key/label 정규화 규칙 (매우 중요):
-- 아래 표준 필드 목록에서 의미가 일치하는 key를 반드시 사용해
-- 원문이 영어/중국어/일본어여도 아래 한국어 label로 통일
-- 표준 목록에 없는 항목만 새 key를 만들되, 반드시 영문 snake_case + 한국어 label
-- 값이 여러 항목 나열인 경우 (쉼표 구분) 알파벳/가나다 순으로 정렬
-
-표준 필드 목록:
-${getStandardFieldsPrompt()}
+- 요청한 항목의 key와 label을 그대로 사용해서 반환해
 
 출력 (JSON만 반환):
 {
