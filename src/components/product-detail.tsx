@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateProduct, updateSpec, createSpec, deleteSpec, deleteProduct, getKnownSpecKeys, getDisplayBrands, getCompetitors, DISPLAY_BRAND_KEY } from "@/lib/queries";
+import { supabase } from "@/lib/supabase";
 import type { Product, Spec, Competitor } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { CURRENCIES, CATEGORIES, COUNTRIES } from "@/lib/constants";
@@ -720,6 +721,7 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
   const [currency, setCurrency] = useState(product.currency);
   const [imageUrl, setImageUrl] = useState(product.image_url);
   const [knownCountries, setKnownCountries] = useState<string[]>([]);
+  const [aiResearching, setAiResearching] = useState(false);
 
   useEffect(() => {
     getKnownSpecKeys().then(setKnownKeys);
@@ -729,6 +731,44 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
       setKnownCountries([...new Set(countries)]);
     });
   }, [product.id]);
+
+  const handleAiResearch = async () => {
+    setAiResearching(true);
+    try {
+      const configRes = await fetch("/api/worker-config");
+      const { url: workerUrl, token: workerToken } = await configRes.json();
+
+      const res = await fetch(`${workerUrl}/run-research`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": workerToken,
+        },
+        body: JSON.stringify({
+          competitor_name: product.competitor.name,
+          product_name: product.name,
+          model_number: product.model_number || null,
+          country: product.country || null,
+          product_id: product.id,
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const { data: updatedSpecs } = await supabase
+          .from("specs")
+          .select("*")
+          .eq("product_id", product.id);
+        if (updatedSpecs) {
+          setSpecs(updatedSpecs.filter((s: Spec) => s.field_key !== DISPLAY_BRAND_KEY));
+        }
+      }
+    } catch (e) {
+      console.error("AI research failed:", e);
+    } finally {
+      setAiResearching(false);
+    }
+  };
 
   const officialSpecs = specs.filter((s) => s.source === "official" && s.field_key !== DISPLAY_BRAND_KEY);
   const handleUpdate = (id: string, value: string) => {
@@ -803,9 +843,29 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-3">
-          공식 스펙
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">
+            공식 스펙
+          </h2>
+          <button
+            onClick={handleAiResearch}
+            disabled={aiResearching}
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:opacity-80 disabled:opacity-40"
+            style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+          >
+            {aiResearching ? (
+              <>
+                <span className="inline-block animate-spin">⏳</span>
+                AI 웹 검색 중...
+              </>
+            ) : (
+              <>
+                <span>🔍</span>
+                AI 웹 검색으로 스펙 보충
+              </>
+            )}
+          </button>
+        </div>
         <div className="rounded-lg border bg-white overflow-hidden">
           <table className="w-full">
             <tbody>
