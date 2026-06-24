@@ -336,12 +336,18 @@ export function ManualEntryModal({ open, onClose }: Props) {
                 </button>
               </div>
 
-              <div className="text-xs mb-3" style={{ color: "var(--success, #16a34a)" }}>
-                ✅ 스펙 {editedSpecs.length}개 추출
-                {editedSpecs.filter(s => !s.value).length > 0 && (
-                  <span style={{ color: "var(--warning, #d97706)", marginLeft: 8 }}>
-                    ⚠️ 빈 항목 {editedSpecs.filter(s => !s.value).length}개
-                  </span>
+              <div className="text-xs mb-3" style={{ color: editedSpecs.length > 0 ? "var(--success, #16a34a)" : "var(--warning, #d97706)" }}>
+                {editedSpecs.length > 0 ? (
+                  <>
+                    ✅ 스펙 {editedSpecs.length}개 추출
+                    {editedSpecs.filter(s => !s.value).length > 0 && (
+                      <span style={{ color: "var(--warning, #d97706)", marginLeft: 8 }}>
+                        ⚠️ 빈 항목 {editedSpecs.filter(s => !s.value).length}개
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  "⚠️ 페이지에서 스펙을 추출하지 못했습니다. AI 웹 검색으로 보충하세요."
                 )}
               </div>
 
@@ -367,14 +373,14 @@ export function ManualEntryModal({ open, onClose }: Props) {
                 ))}
               </div>
 
-              {editedSpecs.filter(s => !s.value).length > 0 && crawledProductId && (
+              {(editedSpecs.length === 0 || editedSpecs.filter(s => !s.value).length > 0) && crawledProductId && (
                 <button
                   onClick={handleAiResearch}
                   disabled={aiResearching}
                   className="mt-3 w-full py-2 text-xs font-medium border rounded transition-opacity hover:opacity-80 disabled:opacity-40"
                   style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
                 >
-                  {aiResearching ? "AI 웹 검색 중..." : `AI 웹 검색으로 빈 항목 ${editedSpecs.filter(s => !s.value).length}개 보충`}
+                  {aiResearching ? "AI 웹 검색 중..." : editedSpecs.length === 0 ? "AI 웹 검색으로 스펙 자동 수집" : `AI 웹 검색으로 빈 항목 ${editedSpecs.filter(s => !s.value).length}개 보충`}
                 </button>
               )}
 
