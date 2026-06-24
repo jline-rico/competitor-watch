@@ -843,29 +843,9 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
       </div>
 
       <div className="mt-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">
-            공식 스펙
-          </h2>
-          <button
-            onClick={handleAiResearch}
-            disabled={aiResearching}
-            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:opacity-80 disabled:opacity-40"
-            style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
-          >
-            {aiResearching ? (
-              <>
-                <span className="inline-block animate-spin">⏳</span>
-                AI 웹 검색 중...
-              </>
-            ) : (
-              <>
-                <span>🔍</span>
-                AI 웹 검색으로 스펙 보충
-              </>
-            )}
-          </button>
-        </div>
+        <h2 className="text-lg font-semibold mb-3">
+          공식 스펙
+        </h2>
         <div className="rounded-lg border bg-white overflow-hidden">
           <table className="w-full">
             <tbody>
@@ -890,10 +870,29 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
       </div>
 
       <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-3">
-          수동 추가
-          <span className="ml-2 text-xs font-normal text-amber-500">* AI가 놓친 공식 스펙을 직접 추가</span>
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">
+            수동 추가
+            <span className="ml-2 text-xs font-normal text-amber-500">* AI가 놓친 공식 스펙을 직접 추가</span>
+          </h2>
+          <button
+            onClick={handleAiResearch}
+            disabled={aiResearching}
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all hover:opacity-80 disabled:opacity-40"
+            style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+          >
+            {aiResearching ? (
+              <>
+                <span className="inline-block animate-spin">⏳</span>
+                AI 웹 검색 중...
+              </>
+            ) : (
+              <>
+                🔍 AI 웹 검색으로 스펙 보충
+              </>
+            )}
+          </button>
+        </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 overflow-hidden">
           <table className="w-full">
             <tbody>
