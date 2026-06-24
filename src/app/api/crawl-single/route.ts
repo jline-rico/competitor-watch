@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const workerUrl = process.env.CRAWL_WORKER_URL;
   const workerToken = process.env.CRAWL_WORKER_AUTH_TOKEN;
