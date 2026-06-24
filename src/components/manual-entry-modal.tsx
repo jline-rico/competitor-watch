@@ -102,6 +102,7 @@ export function ManualEntryModal({ open, onClose }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           competitor_name: competitorName.trim(),
+          competitor_id: competitors.find(c => c.name === competitorName.trim())?.id || null,
           product_url: productUrl.trim(),
           country: country || null,
         }),
