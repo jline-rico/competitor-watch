@@ -300,10 +300,10 @@ export async function runSingle(
     if (existing) {
       productId = existing.id;
       isUpdate = true;
-      // Update product metadata and timestamp
       await db.request(`products?id=eq.${productId}`, {
         method: "PATCH",
         body: JSON.stringify({
+          ...(extracted.name ? { name: extracted.name } : {}),
           ...(extracted.image_url ? { image_url: extracted.image_url } : {}),
           ...(extracted.price ? { price: extracted.price } : {}),
           ...(extracted.currency ? { currency: extracted.currency } : {}),
