@@ -68,6 +68,12 @@ export class SupabaseClient {
     ) as Promise<Competitor[]>;
   }
 
+  async getAllCompetitors(): Promise<Competitor[]> {
+    return this.request(
+      "competitors?deleted_at=is.null&select=id,name,catalog_url,country,crawl_config",
+    ) as Promise<Competitor[]>;
+  }
+
   async getExistingProducts(competitorId: string): Promise<ExistingProduct[]> {
     return this.request(`products?competitor_id=eq.${competitorId}&select=id,product_url`) as Promise<ExistingProduct[]>;
   }
@@ -113,6 +119,12 @@ export class SupabaseClient {
       method: "POST",
       body: JSON.stringify(specs),
     });
+  }
+
+  async getExistingFieldKeys(): Promise<{ field_key: string; field_label: string; category: string }[]> {
+    return this.request(
+      "spec_fields?select=field_key,field_label,category",
+    ) as Promise<{ field_key: string; field_label: string; category: string }[]>;
   }
 
   async insertCrawlLog(log: CrawlLog): Promise<void> {

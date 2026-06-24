@@ -96,6 +96,9 @@ async function processCompetitor(
 
     if (newProducts.length === 0) return log;
 
+    // Fetch existing field keys from DB for normalization
+    const existingFieldKeys = await db.getExistingFieldKeys();
+
     // Step 5: Process each new product
     for (const product of newProducts) {
       try {
@@ -112,7 +115,7 @@ async function processCompetitor(
 
         // Try text extraction first
         let extracted = await withRetry(() =>
-          extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed),
+          extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed, existingFieldKeys),
         );
 
         let specsSource = "official_text";
@@ -128,7 +131,7 @@ async function processCompetitor(
 
           if (ssResult.ok && ssResult.screenshot) {
             const visionResult = await withRetry(() =>
-              extractSpecsFromImage(env.GEMINI_API_KEY, ssResult.screenshot!),
+              extractSpecsFromImage(env.GEMINI_API_KEY, ssResult.screenshot!, existingFieldKeys),
             );
 
             if (
@@ -206,7 +209,7 @@ export async function runSingle(
   // Resolve competitor first for logging
   let competitorId = params.competitor_id || null;
   if (!competitorId) {
-    const competitors = await db.getActiveCompetitors();
+    const competitors = await db.getAllCompetitors();
     const match = competitors.find(
       (c) => c.name.toLowerCase() === params.competitor_name.toLowerCase(),
     );
@@ -247,16 +250,19 @@ export async function runSingle(
       return { ok: false, error: log.error_message };
     }
 
+    // Fetch existing field keys for normalization
+    const existingFieldKeys = await db.getExistingFieldKeys();
+
     const detailTrimmed = trimHtml(detailResult.html);
     const textExtracted = await withRetry(() =>
-      extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed),
+      extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed, existingFieldKeys),
     );
     let extracted = textExtracted;
     let specsSource = "official_text";
 
     if ((!extracted || extracted.specs.length < SPEC_THRESHOLD) && detailResult.screenshot) {
       const visionResult = await withRetry(() =>
-        extractSpecsFromImage(env.GEMINI_API_KEY, detailResult.screenshot!),
+        extractSpecsFromImage(env.GEMINI_API_KEY, detailResult.screenshot!, existingFieldKeys),
       );
       if (visionResult && visionResult.specs.length > (extracted?.specs.length || 0)) {
         extracted = visionResult;
