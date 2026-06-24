@@ -5,7 +5,9 @@ import {
   getCompetitors,
   getSpecFields,
   createManualProduct,
+  checkProductUrlExists,
 } from "@/lib/queries";
+import { supabase } from "@/lib/supabase";
 import { CATEGORIES, COUNTRIES, CURRENCIES } from "@/lib/constants";
 import type { Competitor, SpecField } from "@/lib/types";
 
@@ -29,13 +31,28 @@ export function ManualEntryModal({ open, onClose }: Props) {
   const [specValues, setSpecValues] = useState<Record<string, string>>({});
   const [customSpecs, setCustomSpecs] = useState<{ label: string; value: string }[]>([]);
 
-  const [aiResearch, setAiResearch] = useState(false);
-
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [step, setStep] = useState<"input" | "preview">("input");
+  const [crawling, setCrawling] = useState(false);
+  const [crawlResult, setCrawlResult] = useState<{
+    name?: string;
+    model?: string;
+    category?: string;
+    price?: number;
+    currency?: string;
+    image_url?: string;
+    specs: { key: string; label: string; value: string }[];
+  } | null>(null);
+  const [editedSpecs, setEditedSpecs] = useState<{ key: string; label: string; value: string }[]>([]);
+  const [urlExists, setUrlExists] = useState<string | null>(null);
+  const [crawlFailed, setCrawlFailed] = useState(false);
+  const [crawledProductId, setCrawledProductId] = useState<string | null>(null);
+  const [aiResearching, setAiResearching] = useState(false);
 
   useEffect(() => {
     if (open) getCompetitors().then(setCompetitors).catch(() => {});
@@ -67,30 +84,116 @@ export function ManualEntryModal({ open, onClose }: Props) {
     setShowSuggestions(false);
   };
 
-  const handleSubmit = async () => {
-    if (!competitorName.trim() || !productName.trim() || !category) return;
-    setLoading(true);
+  const handleCrawlPreview = async () => {
+    if (!competitorName.trim() || !productName.trim() || !productUrl.trim() || !category) return;
+
+    const existingProduct = await checkProductUrlExists(productUrl.trim());
+    if (existingProduct) {
+      if (!confirm(`이미 등록된 제품입니다: ${existingProduct.name}\n재크롤링하시겠습니까?`)) return;
+      setUrlExists(existingProduct.name);
+    }
+
+    setCrawling(true);
     setError(null);
 
     try {
-      const specs = [
-        ...specFields
-          .filter((f) => specValues[f.field_key]?.trim())
-          .map((f) => ({
-            field_key: f.field_key,
-            field_label: f.field_label,
-            value: specValues[f.field_key],
-          })),
-        ...customSpecs
-          .filter((s) => s.label.trim() && s.value.trim())
-          .map((s) => ({
-            field_key: s.label.toLowerCase().replace(/\s+/g, "_"),
-            field_label: s.label,
-            value: s.value,
-          })),
-      ];
+      const res = await fetch("/api/crawl-single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          competitor_name: competitorName.trim(),
+          product_url: productUrl.trim(),
+          country: country || null,
+        }),
+      });
+      const data = await res.json();
 
-      const product = await createManualProduct({
+      if (data.ok && data.product_id) {
+        const { data: savedSpecs } = await supabase
+          .from("specs")
+          .select("field_key, field_label, value")
+          .eq("product_id", data.product_id);
+
+        const specs = (savedSpecs || []).map((s: any) => ({
+          key: s.field_key,
+          label: s.field_label,
+          value: s.value,
+        }));
+
+        setCrawlResult({ specs, name: productName, category });
+        setEditedSpecs(specs);
+        setCrawledProductId(data.product_id);
+        setStep("preview");
+      } else {
+        setError(data.error || "크롤링에 실패했습니다.");
+        setCrawlFailed(true);
+      }
+    } catch {
+      setError("크롤링 서버에 연결할 수 없습니다.");
+      setCrawlFailed(true);
+    } finally {
+      setCrawling(false);
+    }
+  };
+
+  const handleAiResearch = async () => {
+    if (!crawledProductId) return;
+    setAiResearching(true);
+    try {
+      const res = await fetch("/api/crawl-single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_id: crawledProductId,
+          research: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const { data: updatedSpecs } = await supabase
+          .from("specs")
+          .select("field_key, field_label, value")
+          .eq("product_id", crawledProductId);
+
+        if (updatedSpecs) {
+          setEditedSpecs(updatedSpecs.map((s: any) => ({
+            key: s.field_key,
+            label: s.field_label,
+            value: s.value,
+          })));
+        }
+      }
+    } catch (e) {
+      console.error("AI research failed:", e);
+    } finally {
+      setAiResearching(false);
+    }
+  };
+
+  const handleSavePreview = async () => {
+    if (!crawledProductId) return;
+    setLoading(true);
+    try {
+      for (const spec of editedSpecs) {
+        await supabase
+          .from("specs")
+          .update({ value: spec.value })
+          .eq("product_id", crawledProductId)
+          .eq("field_key", spec.key);
+      }
+      setSubmitted(true);
+    } catch (e) {
+      setError("스펙 저장에 실패했습니다.");
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveWithoutSpecs = async () => {
+    setLoading(true);
+    try {
+      await createManualProduct({
         competitor_name: competitorName.trim(),
         name: productName.trim(),
         model_number: modelNumber.trim() || undefined,
@@ -98,30 +201,14 @@ export function ManualEntryModal({ open, onClose }: Props) {
         country: country || undefined,
         price: price ? Number(price) : undefined,
         currency: currency || undefined,
-        product_url: productUrl.trim() || undefined,
+        product_url: productUrl.trim(),
         image_url: imageUrl.trim() || undefined,
-        ai_research: aiResearch,
-        specs,
+        ai_research: false,
+        specs: [],
       });
-
-      if (aiResearch) {
-        fetch("/api/crawl-single", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            competitor_name: competitorName.trim(),
-            product_name: productName.trim(),
-            model_number: modelNumber.trim() || null,
-            country: country || null,
-            product_id: product.id,
-            research_mode: true,
-          }),
-        }).catch(() => {});
-      }
-
       setSubmitted(true);
     } catch {
-      setError("등록 중 오류가 발생했습니다.");
+      setError("저장에 실패했습니다.");
     } finally {
       setLoading(false);
     }
@@ -140,7 +227,14 @@ export function ManualEntryModal({ open, onClose }: Props) {
     setSpecFields([]);
     setSpecValues({});
     setCustomSpecs([]);
-    setAiResearch(false);
+    setStep("input");
+    setCrawling(false);
+    setCrawlResult(null);
+    setEditedSpecs([]);
+    setUrlExists(null);
+    setCrawlFailed(false);
+    setCrawledProductId(null);
+    setAiResearching(false);
     setSubmitted(false);
     setError(null);
     onClose();
@@ -199,9 +293,7 @@ export function ManualEntryModal({ open, onClose }: Props) {
                 등록 완료!
               </h3>
               <p className="mt-2 text-sm whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
-                {aiResearch
-                  ? "제품이 등록되었습니다.\n빈 항목은 AI가 리서치 중입니다."
-                  : "제품이 등록되었습니다."}
+                제품이 등록되었습니다.
               </p>
               <button
                 onClick={handleClose}
@@ -209,6 +301,76 @@ export function ManualEntryModal({ open, onClose }: Props) {
                 style={{ borderRadius: "var(--radius-sm)", background: "var(--accent)" }}
               >
                 확인
+              </button>
+            </div>
+          ) : step === "preview" && crawlResult ? (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                  크롤링 결과 미리보기
+                </h3>
+                <button
+                  onClick={() => { setStep("input"); setCrawlResult(null); setCrawlFailed(false); }}
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  ← 뒤로
+                </button>
+              </div>
+
+              <div className="text-xs mb-3" style={{ color: "var(--success, #16a34a)" }}>
+                ✅ 스펙 {editedSpecs.length}개 추출
+                {editedSpecs.filter(s => !s.value).length > 0 && (
+                  <span style={{ color: "var(--warning, #d97706)", marginLeft: 8 }}>
+                    ⚠️ 빈 항목 {editedSpecs.filter(s => !s.value).length}개
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
+                {editedSpecs.map((spec, i) => (
+                  <div key={spec.key} className="flex gap-2 items-center">
+                    <span className="text-xs w-28 flex-shrink-0 truncate"
+                      style={{ color: "var(--text-secondary)" }}>
+                      {spec.label}
+                    </span>
+                    <input
+                      type="text"
+                      value={spec.value}
+                      onChange={(e) => {
+                        const next = [...editedSpecs];
+                        next[i] = { ...next[i], value: e.target.value };
+                        setEditedSpecs(next);
+                      }}
+                      className="flex-1 px-2.5 py-1.5 text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {editedSpecs.filter(s => !s.value).length > 0 && crawledProductId && (
+                <button
+                  onClick={handleAiResearch}
+                  disabled={aiResearching}
+                  className="mt-3 w-full py-2 text-xs font-medium border rounded transition-opacity hover:opacity-80 disabled:opacity-40"
+                  style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+                >
+                  {aiResearching ? "AI 웹 검색 중..." : `AI 웹 검색으로 빈 항목 ${editedSpecs.filter(s => !s.value).length}개 보충`}
+                </button>
+              )}
+
+              {error && (
+                <p className="mt-2 text-xs" style={{ color: "var(--danger, #dc2626)" }}>{error}</p>
+              )}
+
+              <button
+                onClick={handleSavePreview}
+                disabled={loading}
+                className="mt-3 w-full py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:opacity-40"
+                style={{ borderRadius: "var(--radius-sm)", background: "var(--accent)" }}
+              >
+                {loading ? "저장 중..." : "저장하기"}
               </button>
             </div>
           ) : (
@@ -298,7 +460,7 @@ export function ManualEntryModal({ open, onClose }: Props) {
                   </datalist>
                 </div>
 
-                <input type="text" placeholder="제품 페이지 URL (선택)" value={productUrl}
+                <input type="text" placeholder="제품 페이지 URL (필수)" value={productUrl}
                   onChange={(e) => setProductUrl(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-sm font-mono-data" style={inputStyle} />
 
@@ -389,45 +551,33 @@ export function ManualEntryModal({ open, onClose }: Props) {
                 </div>
               )}
 
-              <div
-                className="mt-4 flex items-center justify-between px-3 py-3"
-                style={{
-                  background: "var(--accent-light)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--accent-border, #fde68a)",
-                }}
-              >
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
-                    🤖 빈 항목 AI 리서치
-                  </div>
-                  <div className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-                    비어있는 스펙을 AI가 검색해서 채웁니다
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAiResearch(!aiResearch)}
-                  className="relative w-10 h-5 rounded-full transition-colors"
-                  style={{ background: aiResearch ? "var(--accent)" : "var(--border)" }}
-                >
-                  <span
-                    className="absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all"
-                    style={{ left: aiResearch ? "22px" : "2px" }}
-                  />
-                </button>
-              </div>
-
               {error && (
                 <p className="mt-2 text-xs" style={{ color: "var(--danger, #dc2626)" }}>{error}</p>
               )}
 
+              {crawlFailed && (
+                <div className="mt-3 p-3 rounded-md" style={{ background: "var(--surface-warm, #fefce8)", border: "1px solid #fde68a" }}>
+                  <p className="text-xs mb-2" style={{ color: "#92400e" }}>
+                    크롤링에 실패했습니다. 스펙 없이 기본 정보만 저장할 수 있습니다.
+                  </p>
+                  <button
+                    onClick={handleSaveWithoutSpecs}
+                    disabled={loading}
+                    className="w-full py-2 text-xs font-medium border rounded transition-opacity hover:opacity-80 disabled:opacity-40"
+                    style={{ borderColor: "#a16207", color: "#a16207" }}
+                  >
+                    {loading ? "저장 중..." : "스펙 없이 기본 정보만 저장"}
+                  </button>
+                </div>
+              )}
+
               <button
-                onClick={handleSubmit}
-                disabled={loading || !competitorName.trim() || !productName.trim() || !category}
+                onClick={handleCrawlPreview}
+                disabled={crawling || !competitorName.trim() || !productName.trim() || !category || !productUrl.trim()}
                 className="mt-5 w-full py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ borderRadius: "var(--radius-sm)", background: "var(--accent)" }}
               >
-                {loading ? "등록 중..." : "등록하기"}
+                {crawling ? "크롤링 중..." : "크롤링 시작"}
               </button>
             </>
           )}

@@ -38,14 +38,14 @@ export async function POST(request: Request) {
       method: "POST",
       headers,
       body: fetchBody,
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(60000),
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.ok ? 200 : 500 });
-  } catch {
+  } catch (err) {
     return NextResponse.json({
-      ok: true,
-      note: "Worker에 요청을 전송했습니다. 크롤링은 백그라운드에서 진행됩니다.",
-    });
+      ok: false,
+      error: "크롤링 서버 응답 시간 초과. 잠시 후 다시 시도해주세요.",
+    }, { status: 504 });
   }
 }

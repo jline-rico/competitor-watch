@@ -510,6 +510,138 @@ export async function getCrawlLogs(days = 7) {
   return data as (CrawlLog & { competitor: Pick<Competitor, "id" | "name"> })[];
 }
 
+// --- Smart Spec Matching ---
+
+function stripKoreanAndParens(key: string): string {
+  return key.replace(/[가-힣()（）]/g, "").replace(/_+$/, "").replace(/^_+/, "");
+}
+
+function findCanonicalMatch(
+  unmappedKey: string,
+  unmappedLabel: string,
+  existingFields: { field_key: string; field_label: string; category: string }[]
+): { canonical_key: string; canonical_label: string; match_type: "key_contains" | "label_exact" } | null {
+  const strippedUnmapped = stripKoreanAndParens(unmappedKey);
+
+  for (const f of existingFields) {
+    if (unmappedKey !== f.field_key && unmappedKey.startsWith(f.field_key + "_")) {
+      return { canonical_key: f.field_key, canonical_label: f.field_label, match_type: "key_contains" };
+    }
+    if (unmappedKey !== f.field_key && strippedUnmapped === f.field_key) {
+      return { canonical_key: f.field_key, canonical_label: f.field_label, match_type: "key_contains" };
+    }
+    if (unmappedKey !== f.field_key && unmappedLabel === f.field_label) {
+      return { canonical_key: f.field_key, canonical_label: f.field_label, match_type: "label_exact" };
+    }
+  }
+  return null;
+}
+
+export type UnmappedWithSuggestion = {
+  field_key: string;
+  field_label: string;
+  count: number;
+  categories: string[];
+  products: string[];
+  suggestion: {
+    canonical_key: string;
+    canonical_label: string;
+    match_type: "key_contains" | "label_exact" | "ai";
+  } | null;
+};
+
+export async function getUnmappedWithSuggestions(): Promise<UnmappedWithSuggestion[]> {
+  const { data: allSpecs } = await supabase
+    .from("specs")
+    .select("field_key, field_label, product_id, product:products(name, category)");
+  const { data: allFields } = await supabase
+    .from("spec_fields")
+    .select("field_key, field_label, category");
+
+  if (!allSpecs || !allFields) return [];
+
+  const mappedKeys = new Set(allFields.map((f: { field_key: string }) => f.field_key));
+  const unmapped = allSpecs.filter(
+    (s: { field_key: string }) => s.field_key !== DISPLAY_BRAND_KEY && !mappedKeys.has(s.field_key)
+  );
+
+  const unique = new Map<string, {
+    field_key: string;
+    field_label: string;
+    count: number;
+    categories: Set<string>;
+    products: Set<string>;
+  }>();
+
+  for (const s of unmapped) {
+    const existing = unique.get(s.field_key);
+    const prod = (s as any).product;
+    const catName: string = prod?.category ?? "미분류";
+    const prodName: string = prod?.name ?? "알 수 없음";
+    if (existing) {
+      existing.count++;
+      existing.categories.add(catName);
+      existing.products.add(prodName);
+    } else {
+      unique.set(s.field_key, {
+        field_key: s.field_key,
+        field_label: s.field_label,
+        count: 1,
+        categories: new Set([catName]),
+        products: new Set([prodName]),
+      });
+    }
+  }
+
+  return Array.from(unique.values()).map((item) => ({
+    ...item,
+    categories: Array.from(item.categories),
+    products: Array.from(item.products),
+    suggestion: findCanonicalMatch(item.field_key, item.field_label, allFields as any[]),
+  }));
+}
+
+export async function mergeSpecKey(
+  oldKey: string,
+  canonicalKey: string,
+  canonicalLabel: string,
+  categories: string[]
+) {
+  const { error: updateError } = await supabase
+    .from("specs")
+    .update({ field_key: canonicalKey, field_label: canonicalLabel })
+    .eq("field_key", oldKey);
+  if (updateError) throw updateError;
+
+  await supabase
+    .from("spec_fields")
+    .delete()
+    .eq("field_key", oldKey);
+
+  for (const category of categories) {
+    const { data: existing } = await supabase
+      .from("spec_fields")
+      .select("id")
+      .eq("field_key", canonicalKey)
+      .eq("category", category)
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      await createSpecField(category, canonicalKey, canonicalLabel);
+    }
+  }
+}
+
+export async function checkProductUrlExists(url: string): Promise<Product | null> {
+  const { data } = await supabase
+    .from("products")
+    .select("*, competitor:competitors(name)")
+    .eq("product_url", url)
+    .limit(1);
+  if (data && data.length > 0) return data[0] as Product;
+  return null;
+}
+
 export async function getLatestCrawlStatus() {
   const today = new Date();
   today.setHours(today.getHours() + 9);
