@@ -3,11 +3,28 @@ import { normalizeFieldKeys, resetTokensUsed, getTokensUsed } from "./gemini";
 import type { Env } from "./supabase";
 import { SupabaseClient } from "./supabase";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Auth-Token",
+};
+
+function corsJson(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
     const token = request.headers.get("X-Auth-Token");
     if (token !== env.AUTH_TOKEN) {
-      return new Response("Unauthorized", { status: 403 });
+      return new Response("Unauthorized", { status: 403, headers: CORS_HEADERS });
     }
 
     const url = new URL(request.url);
@@ -16,10 +33,10 @@ export default {
       try {
         const competitorId = url.searchParams.get("competitor_id");
         const result = await runPipeline(env, competitorId);
-        return Response.json(result);
+        return corsJson(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        return Response.json({ error: message }, { status: 500 });
+        return corsJson({ error: message }, 500);
       }
     }
 
@@ -32,16 +49,16 @@ export default {
           competitor_id?: string | null;
         };
         if (!body.product_url || !body.competitor_name) {
-          return Response.json(
+          return corsJson(
             { error: "competitor_name and product_url are required" },
-            { status: 400 },
+            400,
           );
         }
         const result = await runSingle(env, body);
-        return Response.json(result);
+        return corsJson(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        return Response.json({ error: message }, { status: 500 });
+        return corsJson({ error: message }, 500);
       }
     }
 
@@ -55,16 +72,16 @@ export default {
           product_id: string;
         };
         if (!body.product_name || !body.competitor_name || !body.product_id) {
-          return Response.json(
+          return corsJson(
             { error: "competitor_name, product_name, and product_id are required" },
-            { status: 400 },
+            400,
           );
         }
         const result = await runResearch(env, body);
-        return Response.json(result);
+        return corsJson(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        return Response.json({ error: message }, { status: 500 });
+        return corsJson({ error: message }, 500);
       }
     }
 
@@ -102,14 +119,14 @@ export default {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        return Response.json({ error: message }, { status: 500 });
+        return corsJson({ error: message }, 500);
       }
     }
 
     if (url.pathname === "/health") {
-      return Response.json({ ok: true, timestamp: new Date().toISOString() });
+      return corsJson({ ok: true, timestamp: new Date().toISOString() });
     }
 
-    return new Response("Not Found", { status: 404 });
+    return new Response("Not Found", { status: 404, headers: CORS_HEADERS });
   },
 } satisfies ExportedHandler<Env>;
