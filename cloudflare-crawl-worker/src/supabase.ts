@@ -92,19 +92,60 @@ export class SupabaseClient {
   ): Promise<{ id: string; specs_source: string | null } | null> {
     // Match by URL first
     const byUrl = await this.request(
-      `products?competitor_id=eq.${competitorId}&product_url=eq.${encodeURIComponent(productUrl)}&select=id,specs_source&limit=1`,
+      `products?competitor_id=eq.${competitorId}&product_url=eq.${encodeURIComponent(productUrl)}&select=id,specs_source&order=created_at.asc`,
     ) as { id: string; specs_source: string | null }[];
-    if (byUrl.length > 0) return byUrl[0];
 
-    // Fallback: match by model_number
+    // Match by model_number
+    let byModel: { id: string; specs_source: string | null }[] = [];
     if (modelNumber) {
-      const byModel = await this.request(
-        `products?competitor_id=eq.${competitorId}&model_number=eq.${encodeURIComponent(modelNumber)}&select=id,specs_source&limit=1`,
+      byModel = await this.request(
+        `products?competitor_id=eq.${competitorId}&model_number=eq.${encodeURIComponent(modelNumber)}&select=id,specs_source&order=created_at.asc`,
       ) as { id: string; specs_source: string | null }[];
-      if (byModel.length > 0) return byModel[0];
     }
 
-    return null;
+    // Merge all matches, deduplicate by id
+    const seen = new Set<string>();
+    const allMatches: { id: string; specs_source: string | null }[] = [];
+    for (const p of [...byUrl, ...byModel]) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        allMatches.push(p);
+      }
+    }
+
+    if (allMatches.length === 0) return null;
+    if (allMatches.length === 1) return allMatches[0];
+
+    // Auto-merge duplicates: keep the oldest, move specs from others
+    const keeper = allMatches[0];
+    const duplicates = allMatches.slice(1);
+
+    for (const dup of duplicates) {
+      // Move specs to keeper (skip if field_key already exists)
+      const dupSpecs = await this.request(
+        `specs?product_id=eq.${dup.id}&select=id,field_key,field_label,value,source`,
+      ) as { id: string; field_key: string; field_label: string; value: string; source: string }[];
+      const keeperSpecs = await this.request(
+        `specs?product_id=eq.${keeper.id}&select=field_key`,
+      ) as { field_key: string }[];
+      const keeperKeys = new Set(keeperSpecs.map((s) => s.field_key));
+
+      for (const spec of dupSpecs) {
+        if (!keeperKeys.has(spec.field_key)) {
+          await this.request(`specs?id=eq.${spec.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ product_id: keeper.id }),
+          });
+        } else {
+          await this.request(`specs?id=eq.${spec.id}`, { method: "DELETE" });
+        }
+      }
+
+      // Delete the duplicate product
+      await this.request(`products?id=eq.${dup.id}`, { method: "DELETE" });
+    }
+
+    return keeper;
   }
 
   async getExistingSpecs(productId: string): Promise<{ field_key: string }[]> {
