@@ -211,7 +211,7 @@ export function CompetitorList() {
                 </th>
                 <th
                   className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
-                  style={{ color: "var(--text-tertiary)", width: "80px", borderBottom: "2px solid var(--border)" }}
+                  style={{ color: "var(--text-tertiary)", width: "90px", borderBottom: "2px solid var(--border)" }}
                 >
                   상태
                 </th>
@@ -363,7 +363,7 @@ export function CompetitorList() {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleToggle(c.id, c.is_active)}
-                        className="rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+                        className="rounded-full px-3 py-1 text-xs font-semibold transition-colors whitespace-nowrap"
                         style={{
                           background: c.is_active ? "var(--success-light)" : "var(--bg-warm)",
                           color: c.is_active ? "var(--success)" : "var(--text-tertiary)",
