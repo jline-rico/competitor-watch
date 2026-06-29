@@ -15,13 +15,26 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Auth-Token": workerToken,
+  };
+
+  // catalog_mode: fire-and-forget — Worker runs in background, return immediately
+  if (body.catalog_mode && body.competitor_id) {
+    const endpoint = `/run?competitor_id=${body.competitor_id}`;
+    fetch(`${workerUrl}${endpoint}`, {
+      method: "POST",
+      headers,
+      body: "{}",
+    }).catch(() => {});
+    return NextResponse.json({ ok: true, queued: true });
+  }
+
   let endpoint: string;
   let fetchBody: string;
 
-  if (body.catalog_mode && body.competitor_id) {
-    endpoint = `/run?competitor_id=${body.competitor_id}`;
-    fetchBody = "{}";
-  } else if (body.research_mode) {
+  if (body.research_mode) {
     endpoint = "/run-research";
     fetchBody = JSON.stringify(body);
   } else {
@@ -29,14 +42,8 @@ export async function POST(request: Request) {
     fetchBody = JSON.stringify(body);
   }
 
-  const workerFetchUrl = `${workerUrl}${endpoint}`;
-  const headers = {
-    "Content-Type": "application/json",
-    "X-Auth-Token": workerToken,
-  };
-
   try {
-    const res = await fetch(workerFetchUrl, {
+    const res = await fetch(`${workerUrl}${endpoint}`, {
       method: "POST",
       headers,
       body: fetchBody,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createCompetitor, getCompetitors } from "@/lib/queries";
+import { createCompetitor, getCompetitors, getLatestCrawlStatus } from "@/lib/queries";
 import { COUNTRIES } from "@/lib/constants";
 import type { Competitor } from "@/lib/types";
 
@@ -21,6 +21,7 @@ export function AddUrlModal({ open, onClose }: Props) {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tokenWarning, setTokenWarning] = useState(false);
 
   useEffect(() => {
     if (open) getCompetitors().then(setCompetitors).catch(() => {});
@@ -40,8 +41,8 @@ export function AddUrlModal({ open, onClose }: Props) {
     setShowSuggestions(false);
   };
 
-  const handleSubmit = async () => {
-    if (!name.trim() || !url.trim()) return;
+  const doSubmit = async () => {
+    setTokenWarning(false);
     setLoading(true);
     setError(null);
 
@@ -83,12 +84,24 @@ export function AddUrlModal({ open, onClose }: Props) {
     }
   };
 
+  const handleSubmit = async () => {
+    if (!name.trim() || !url.trim()) return;
+    try {
+      const status = await getLatestCrawlStatus();
+      if (status.todayTokens >= status.tokenLimit) {
+        setTokenWarning(true);
+      }
+    } catch {}
+    doSubmit();
+  };
+
   const handleClose = () => {
     setName("");
     setUrl("");
     setCountry("");
     setSubmitted(false);
     setError(null);
+    setTokenWarning(false);
     setMode("competitor");
     setShowSuggestions(false);
     onClose();
@@ -153,7 +166,7 @@ export function AddUrlModal({ open, onClose }: Props) {
                 style={{ color: "var(--text-secondary)" }}
               >
                 {submittedMode === "competitor"
-                  ? "경쟁사가 등록되었습니다.\n매일 자동으로 신제품을 감지합니다."
+                  ? "경쟁사가 등록되었습니다.\n백그라운드에서 크롤링이 진행 중입니다.\n5~10분 후 제품이 표시됩니다."
                   : "스펙 수집을 시작했습니다.\n잠시 후 조사 대상 목록에서 확인하세요."}
               </p>
               <button
@@ -325,28 +338,35 @@ export function AddUrlModal({ open, onClose }: Props) {
                 </p>
               )}
 
-              <button
-                onClick={handleSubmit}
-                disabled={loading || !name.trim() || !url.trim()}
-                className="mt-5 w-full py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  borderRadius: "var(--radius-sm)",
-                  background: "var(--accent)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!e.currentTarget.disabled)
-                    e.currentTarget.style.background = "var(--accent-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "var(--accent)";
-                }}
-              >
-                {loading
-                  ? "처리 중..."
-                  : mode === "competitor"
-                    ? "모니터링 시작"
-                    : "스펙 수집 시작"}
-              </button>
+              {tokenWarning && (
+                <p className="mt-2 text-xs" style={{ color: "#dc2626" }}>
+                  ⚠️ 일일 Gemini API 사용량을 초과했습니다.
+                </p>
+              )}
+              {(
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading || !name.trim() || !url.trim()}
+                  className="mt-5 w-full py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    borderRadius: "var(--radius-sm)",
+                    background: "var(--accent)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled)
+                      e.currentTarget.style.background = "var(--accent-hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "var(--accent)";
+                  }}
+                >
+                  {loading
+                    ? "처리 중..."
+                    : mode === "competitor"
+                      ? "모니터링 시작"
+                      : "스펙 수집 시작"}
+                </button>
+              )}
             </>
           )}
         </div>
