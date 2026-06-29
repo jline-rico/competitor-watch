@@ -184,23 +184,42 @@ export function CompetitorList() {
 
       {/* Active competitors table */}
       {competitors.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div
+          className="overflow-x-auto rounded-lg"
+          style={{ border: "1px solid var(--border)" }}
+        >
+          <table className="w-full text-sm" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                <th className="px-3 py-2.5 text-left font-medium" style={{ color: "var(--text-tertiary)", width: "100px" }}>
+              <tr style={{ background: "var(--bg-warm)" }}>
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--text-tertiary)", width: "110px", borderBottom: "2px solid var(--border)" }}
+                >
                   국가
                 </th>
-                <th className="px-3 py-2.5 text-left font-medium" style={{ color: "var(--text-tertiary)" }}>
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--text-tertiary)", width: "140px", borderBottom: "2px solid var(--border)" }}
+                >
                   경쟁사명
                 </th>
-                <th className="px-3 py-2.5 text-left font-medium" style={{ color: "var(--text-tertiary)" }}>
+                <th
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--text-tertiary)", borderBottom: "2px solid var(--border)" }}
+                >
                   카탈로그 URL
                 </th>
-                <th className="px-3 py-2.5 text-center font-medium" style={{ color: "var(--text-tertiary)", width: "80px" }}>
+                <th
+                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--text-tertiary)", width: "80px", borderBottom: "2px solid var(--border)" }}
+                >
                   상태
                 </th>
-                <th className="px-3 py-2.5 text-center font-medium" style={{ color: "var(--text-tertiary)", width: "60px" }}>
+                <th
+                  className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--text-tertiary)", width: "160px", borderBottom: "2px solid var(--border)" }}
+                >
+                  관리
                 </th>
               </tr>
             </thead>
@@ -210,15 +229,16 @@ export function CompetitorList() {
                 return items.map((c, i) => (
                   <tr
                     key={c.id}
+                    className="transition-colors"
                     style={{ borderBottom: "1px solid var(--border)" }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                   >
-                    {/* Country cell — first row only, with inline editing */}
+                    {/* Country cell */}
                     {i === 0 && (
                       <td
                         rowSpan={items.length}
-                        className="px-3 py-2.5 align-top font-medium"
+                        className="px-4 py-3 align-top font-semibold text-sm"
                         style={{
                           color: "var(--text-primary)",
                           borderRight: "1px solid var(--border)",
@@ -235,8 +255,8 @@ export function CompetitorList() {
                                 if (e.key === "Enter") saveEdit();
                                 if (e.key === "Escape") cancelEdit();
                               }}
-                              placeholder="국가 선택 또는 입력"
-                              className="rounded px-1 py-0.5 text-sm"
+                              placeholder="국가 입력"
+                              className="w-full rounded px-1.5 py-0.5 text-sm"
                               style={{
                                 background: "var(--surface)",
                                 border: "1px solid var(--accent)",
@@ -255,7 +275,7 @@ export function CompetitorList() {
                           </div>
                         ) : (
                           <span
-                            className="cursor-pointer"
+                            className="cursor-pointer hover:underline"
                             onClick={() => startEdit(c.id, "country", c.country || "")}
                             title="클릭하여 수정"
                           >
@@ -265,8 +285,8 @@ export function CompetitorList() {
                       </td>
                     )}
 
-                    {/* Name cell — inline editing */}
-                    <td className="px-3 py-2.5">
+                    {/* Name cell */}
+                    <td className="px-4 py-3">
                       {editing?.id === c.id && editing.field === "name" ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -291,7 +311,7 @@ export function CompetitorList() {
                         </div>
                       ) : (
                         <span
-                          className="cursor-pointer font-medium"
+                          className="cursor-pointer font-semibold hover:underline"
                           style={{ color: "var(--text-primary)" }}
                           onClick={() => startEdit(c.id, "name", c.name)}
                           title="클릭하여 수정"
@@ -301,8 +321,8 @@ export function CompetitorList() {
                       )}
                     </td>
 
-                    {/* URL cell — inline editing */}
-                    <td className="px-3 py-2.5">
+                    {/* URL cell */}
+                    <td className="px-4 py-3">
                       {editing?.id === c.id && editing.field === "catalog_url" ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -326,30 +346,24 @@ export function CompetitorList() {
                           <button onClick={cancelEdit} className="text-xs shrink-0" style={{ color: "var(--text-tertiary)" }}>✕</button>
                         </div>
                       ) : (
-                        <a
-                          href={c.catalog_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="truncate block max-w-xs font-mono-data text-xs transition-colors"
+                        <span
+                          className="truncate block font-mono-data text-xs cursor-pointer transition-colors"
                           style={{ color: "var(--text-tertiary)" }}
                           onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            startEdit(c.id, "catalog_url", c.catalog_url);
-                          }}
-                          title="클릭하여 수정"
+                          onClick={() => startEdit(c.id, "catalog_url", c.catalog_url)}
+                          title={c.catalog_url}
                         >
                           {c.catalog_url}
-                        </a>
+                        </span>
                       )}
                     </td>
 
                     {/* Status toggle */}
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleToggle(c.id, c.is_active)}
-                        className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors"
+                        className="rounded-full px-3 py-1 text-xs font-semibold transition-colors"
                         style={{
                           background: c.is_active ? "var(--success-light)" : "var(--bg-warm)",
                           color: c.is_active ? "var(--success)" : "var(--text-tertiary)",
@@ -359,9 +373,9 @@ export function CompetitorList() {
                       </button>
                     </td>
 
-                    {/* Crawl + Delete */}
-                    <td className="px-3 py-2.5 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                    {/* Actions */}
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={async () => {
                             setCrawling((prev) => new Set(prev).add(c.id));
@@ -374,17 +388,38 @@ export function CompetitorList() {
                             }), 3000);
                           }}
                           disabled={crawling.has(c.id)}
-                          className="text-xs font-medium transition-colors disabled:opacity-40"
-                          style={{ color: "var(--accent)" }}
+                          className="rounded-md px-2.5 py-1 text-xs font-semibold transition-all disabled:opacity-40"
+                          style={{
+                            background: "var(--accent-light)",
+                            color: "var(--accent)",
+                            whiteSpace: "nowrap",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!e.currentTarget.disabled) e.currentTarget.style.background = "var(--accent)";
+                            if (!e.currentTarget.disabled) e.currentTarget.style.color = "#fff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "var(--accent-light)";
+                            e.currentTarget.style.color = "var(--accent)";
+                          }}
                         >
                           {crawling.has(c.id) ? "요청 중…" : "크롤링"}
                         </button>
                         <button
                           onClick={() => handleDeleteClick(c.id)}
-                          className="text-xs transition-colors"
-                          style={{ color: "var(--text-tertiary)" }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--danger)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+                          className="rounded-md px-2.5 py-1 text-xs font-medium transition-all"
+                          style={{
+                            color: "var(--text-tertiary)",
+                            whiteSpace: "nowrap",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(220, 38, 38, 0.08)";
+                            e.currentTarget.style.color = "var(--danger, #dc2626)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "var(--text-tertiary)";
+                          }}
                         >
                           삭제
                         </button>
