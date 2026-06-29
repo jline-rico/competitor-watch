@@ -20,6 +20,20 @@ type EditingCell = {
   field: "name" | "catalog_url" | "country";
 } | null;
 
+async function triggerCrawl(competitorId: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/crawl-single", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ catalog_mode: true, competitor_id: competitorId }),
+    });
+    const data = await res.json();
+    return data.ok;
+  } catch {
+    return false;
+  }
+}
+
 function timeRemaining(deletedAt: string): string {
   const diff = new Date(deletedAt).getTime() + 24 * 60 * 60 * 1000 - Date.now();
   if (diff <= 0) return "만료됨";
@@ -37,6 +51,7 @@ export function CompetitorList() {
   const [pinModal, setPinModal] = useState<{ mode: "verify" | "setup"; targetId: string } | null>(null);
   const [savedPin, setSavedPin] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [crawling, setCrawling] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -344,17 +359,36 @@ export function CompetitorList() {
                       </button>
                     </td>
 
-                    {/* Delete button */}
+                    {/* Crawl + Delete */}
                     <td className="px-3 py-2.5 text-center">
-                      <button
-                        onClick={() => handleDeleteClick(c.id)}
-                        className="text-xs transition-colors"
-                        style={{ color: "var(--text-tertiary)" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--danger)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
-                      >
-                        삭제
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={async () => {
+                            setCrawling((prev) => new Set(prev).add(c.id));
+                            const ok = await triggerCrawl(c.id);
+                            setToast(ok ? "크롤링이 시작되었습니다. 5~10분 후 확인하세요." : "크롤링 요청에 실패했습니다.");
+                            setTimeout(() => setCrawling((prev) => {
+                              const next = new Set(prev);
+                              next.delete(c.id);
+                              return next;
+                            }), 3000);
+                          }}
+                          disabled={crawling.has(c.id)}
+                          className="text-xs font-medium transition-colors disabled:opacity-40"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          {crawling.has(c.id) ? "요청 중…" : "크롤링"}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(c.id)}
+                          className="text-xs transition-colors"
+                          style={{ color: "var(--text-tertiary)" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--danger)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-tertiary)"; }}
+                        >
+                          삭제
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ));
