@@ -92,14 +92,14 @@ export class SupabaseClient {
   ): Promise<{ id: string; specs_source: string | null } | null> {
     // Match by URL first
     const byUrl = await this.request(
-      `products?competitor_id=eq.${competitorId}&product_url=eq.${encodeURIComponent(productUrl)}&select=id,specs_source&order=created_at.asc`,
+      `products?competitor_id=eq.${competitorId}&product_url=eq.${encodeURIComponent(productUrl)}&select=id,specs_source&order=discovered_at.asc`,
     ) as { id: string; specs_source: string | null }[];
 
     // Match by model_number
     let byModel: { id: string; specs_source: string | null }[] = [];
     if (modelNumber) {
       byModel = await this.request(
-        `products?competitor_id=eq.${competitorId}&model_number=eq.${encodeURIComponent(modelNumber)}&select=id,specs_source&order=created_at.asc`,
+        `products?competitor_id=eq.${competitorId}&model_number=eq.${encodeURIComponent(modelNumber)}&select=id,specs_source&order=discovered_at.asc`,
       ) as { id: string; specs_source: string | null }[];
     }
 

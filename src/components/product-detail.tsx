@@ -772,9 +772,15 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
           if (updatedProduct.image_url) setImageUrl(updatedProduct.image_url);
           if (updatedProduct.currency) setCurrency(updatedProduct.currency);
         }
+        alert(`스펙 ${data.specs_count || 0}개 수집 완료`);
+      } else {
+        alert(`스펙 수집 실패: ${data.error || "알 수 없는 오류"}`);
       }
     } catch (e) {
       console.error("Crawl specs failed:", e);
+      alert(e instanceof Error && e.name === "TimeoutError"
+        ? "크롤링 시간 초과 (2분). 잠시 후 다시 시도해 주세요."
+        : `스펙 수집 실패: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCrawlingSpecs(false);
     }
