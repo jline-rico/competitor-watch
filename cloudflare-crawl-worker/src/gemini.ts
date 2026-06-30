@@ -1,5 +1,5 @@
 const GEMINI_BASE =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
 
 const CATEGORIES = ["카메라", "도어락", "센서", "허브", "조명", "스위치", "기타"];
 
@@ -193,7 +193,22 @@ HTML에 없는 제품을 추가하지 마. JSON 배열만 반환해.`;
 export async function extractProductSpecs(
   apiKey: string,
   html: string,
+  existingFieldKeys?: { field_key: string; field_label: string; category: string }[],
 ): Promise<ExtractedProduct | null> {
+  let existingKeysPrompt = "";
+  if (existingFieldKeys && existingFieldKeys.length > 0) {
+    const byCat: Record<string, string[]> = {};
+    for (const f of existingFieldKeys) {
+      if (!byCat[f.category]) byCat[f.category] = [];
+      byCat[f.category].push(`${f.field_key}(${f.field_label})`);
+    }
+    const lines = Object.entries(byCat).map(([cat, keys]) => `[${cat}] ${keys.join(", ")}`);
+    existingKeysPrompt = `
+
+DB에 이미 등록된 field_key 목록 (반드시 이 key를 우선 재사용해야 함):
+${lines.join("\n")}`;
+  }
+
   const prompt = `너는 HTML 파서야. 추론하지 마. 검색하지 마.
 주어진 HTML에 명시적으로 적혀있는 정보만 추출해.
 
@@ -203,12 +218,14 @@ export async function extractProductSpecs(
 - 스펙은 스펙표/상세정보 섹션에서만 추출
 - 이미지는 제품 메인 이미지 URL만
 
-스펙 key/label 정규화 규칙 (매우 중요):
-- 아래 표준 필드 목록에서 의미가 일치하는 key를 반드시 사용해
-- 원문이 영어/중국어/일본어여도 아래 한국어 label로 통일
-- 표준 목록에 없는 항목만 새 key를 만들되, 반드시 영문 snake_case + 한국어 label
-- 같은 의미의 항목을 다른 key로 만들지 마 (예: "锁体材质"→material(소재), "Lock Type"→unlock_method(잠금해제 방식))
-- 값이 여러 항목 나열인 경우 (쉼표 구분) 알파벳/가나다 순으로 정렬
+스펙 key/label 정규화 규칙 (매우 중요 — 최우선 규칙):
+1. 아래 "DB에 이미 등록된 field_key 목록"에 의미가 같은 key가 있으면 반드시 그 key와 label을 그대로 사용해. 새 key를 만들지 마.
+2. DB 목록에 없으면, "표준 필드 목록"에서 의미가 일치하는 key를 사용해.
+3. 둘 다 없는 경우에만 새 key를 만들되, 반드시 영문 snake_case + 한국어 label.
+4. 원문이 영어/중국어/일본어여도 한국어 label로 통일.
+5. 절대 원문 텍스트를 key로 사용하지 마 (예: "2MP wide-angle camera"를 key로 쓰지 마).
+6. 값이 여러 항목 나열인 경우 (쉼표 구분) 알파벳/가나다 순으로 정렬.
+${existingKeysPrompt}
 
 표준 필드 목록:
 ${getStandardFieldsPrompt()}
@@ -238,15 +255,32 @@ category는 다음 중 하나: ${CATEGORIES.join(", ")}
 export async function extractSpecsFromImage(
   apiKey: string,
   screenshotBase64: string,
+  existingFieldKeys?: { field_key: string; field_label: string; category: string }[],
 ): Promise<ExtractedProduct | null> {
+  let existingKeysPrompt = "";
+  if (existingFieldKeys && existingFieldKeys.length > 0) {
+    const byCat: Record<string, string[]> = {};
+    for (const f of existingFieldKeys) {
+      if (!byCat[f.category]) byCat[f.category] = [];
+      byCat[f.category].push(`${f.field_key}(${f.field_label})`);
+    }
+    const lines = Object.entries(byCat).map(([cat, keys]) => `[${cat}] ${keys.join(", ")}`);
+    existingKeysPrompt = `
+
+DB에 이미 등록된 field_key 목록 (반드시 이 key를 우선 재사용해야 함):
+${lines.join("\n")}`;
+  }
+
   const prompt = `이 스크린샷은 제품 상세 페이지야.
 이미지에 보이는 제품명, 모델명, 가격, 스펙 항목과 값을 정확히 그대로 읽어서 JSON으로 반환해.
 추론하거나 보충하지 마. 안 보이면 null.
 
-스펙 key/label 정규화 규칙 (매우 중요):
-- 아래 표준 필드 목록에서 의미가 일치하는 key를 반드시 사용해
-- 원문이 영어/중국어/일본어여도 아래 한국어 label로 통일
-- 표준 목록에 없는 항목만 새 key를 만들되, 반드시 영문 snake_case + 한국어 label
+스펙 key/label 정규화 규칙 (매우 중요 — 최우선 규칙):
+1. 아래 "DB에 이미 등록된 field_key 목록"에 의미가 같은 key가 있으면 반드시 그 key와 label을 그대로 사용해.
+2. DB 목록에 없으면, "표준 필드 목록"에서 의미가 일치하는 key를 사용해.
+3. 둘 다 없는 경우에만 새 key를 만들되, 반드시 영문 snake_case + 한국어 label.
+4. 절대 원문 텍스트를 key로 사용하지 마.
+${existingKeysPrompt}
 - 값이 여러 항목 나열인 경우 (쉼표 구분) 알파벳/가나다 순으로 정렬
 
 표준 필드 목록:
