@@ -96,89 +96,22 @@ async function processCompetitor(
 
     if (newProducts.length === 0) return log;
 
-    // Fetch existing field keys from DB for normalization
-    const existingFieldKeys = await db.getExistingFieldKeys();
-
-    // Step 5: Process each new product
+    // Step 5: Save new products to DB (specs will be crawled separately via /run-single)
     for (const product of newProducts) {
       try {
-        const detailResult = await withRetry(() =>
-          crawlPage(env.BROWSER, product.url, { waitFor: 5000 }),
-        );
-
-        if (!detailResult.ok) {
-          log.specs_failed++;
-          continue;
-        }
-
-        const detailTrimmed = trimHtml(detailResult.html);
-
-        // Try text extraction first
-        let extracted = await withRetry(() =>
-          extractProductSpecs(env.GEMINI_API_KEY, detailTrimmed, existingFieldKeys),
-        );
-
-        let specsSource = "official_text";
-
-        // Image fallback if too few specs
-        if (!extracted || extracted.specs.length < SPEC_THRESHOLD) {
-          const ssResult = await crawlPage(
-            env.BROWSER,
-            product.url,
-            { waitFor: 3000 },
-            true,
-          );
-
-          if (ssResult.ok && ssResult.screenshot) {
-            const visionResult = await withRetry(() =>
-              extractSpecsFromImage(env.GEMINI_API_KEY, ssResult.screenshot!, existingFieldKeys),
-            );
-
-            if (
-              visionResult &&
-              visionResult.specs.length > (extracted?.specs.length || 0)
-            ) {
-              extracted = visionResult;
-              specsSource = "official_image";
-              log.specs_from_image++;
-            }
-          }
-        }
-
-        if (!extracted) {
-          log.specs_failed++;
-          continue;
-        }
-
-        // Save product
-        const [saved] = await db.insertProduct({
-          name: extracted.name || product.name,
-          model_number: extracted.model || null,
-          category: extracted.category || "기타",
+        await db.insertProduct({
+          name: product.name,
+          model_number: null,
+          category: "기타",
           product_url: product.url,
-          image_url: extracted.image_url || null,
-          price: extracted.price || null,
-          currency:
-            extracted.currency ||
-            (competitor.country === "한국" ? "KRW" : "USD"),
+          image_url: null,
+          price: null,
+          currency: competitor.country === "한국" ? "KRW" : "USD",
           country: competitor.country || null,
           competitor_id: competitor.id,
           source_type: "monitored",
-          specs_source: specsSource,
+          specs_source: null,
         });
-
-        // Save specs
-        if (saved && extracted.specs.length > 0) {
-          const specs = extracted.specs.map((s) => ({
-            product_id: saved.id,
-            field_key: s.key || s.label.toLowerCase().replace(/\s+/g, "_"),
-            field_label: s.label,
-            value: String(s.value),
-            source: "official",
-          }));
-          await db.insertSpecs(specs);
-          log.specs_extracted += specs.length;
-        }
       } catch {
         log.specs_failed++;
       }
