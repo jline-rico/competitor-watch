@@ -606,7 +606,7 @@ export function SpecTable({ category, sortField, sortDir, onSortChange, visibleF
           {copied ? "복사됨 ✓" : "링크 복사 🔗"}
         </button>
         <button
-          onClick={() => exportToXlsx(sortedProducts, specsMap, fields, category)}
+          onClick={() => exportToXlsx(sortedProducts, specsMap, fields, category, brands)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-all"
           style={{
             borderRadius: "var(--radius-sm)",
