@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 
 export const maxDuration = 60;
 
@@ -20,14 +21,18 @@ export async function POST(request: Request) {
     "X-Auth-Token": workerToken,
   };
 
-  // catalog_mode: fire-and-forget — Worker runs in background, return immediately
+  // catalog_mode: return immediately, but use after() to keep the function alive
   if (body.catalog_mode && body.competitor_id) {
     const endpoint = `/run?competitor_id=${body.competitor_id}`;
-    fetch(`${workerUrl}${endpoint}`, {
-      method: "POST",
-      headers,
-      body: "{}",
-    }).catch(() => {});
+    after(async () => {
+      try {
+        await fetch(`${workerUrl}${endpoint}`, {
+          method: "POST",
+          headers,
+          body: "{}",
+        });
+      } catch {}
+    });
     return NextResponse.json({ ok: true, queued: true });
   }
 
