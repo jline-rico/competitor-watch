@@ -722,6 +722,7 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
   const [imageUrl, setImageUrl] = useState(product.image_url);
   const [knownCountries, setKnownCountries] = useState<string[]>([]);
   const [aiResearching, setAiResearching] = useState(false);
+  const [crawlingSpecs, setCrawlingSpecs] = useState(false);
 
   useEffect(() => {
     getKnownSpecKeys().then(setKnownKeys);
@@ -731,6 +732,53 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
       setKnownCountries([...new Set(countries)]);
     });
   }, [product.id]);
+
+  const handleCrawlSpecs = async () => {
+    if (!product.product_url) return;
+    setCrawlingSpecs(true);
+    try {
+      const configRes = await fetch("/api/worker-config");
+      const { url: workerUrl, token: workerToken } = await configRes.json();
+
+      const res = await fetch(`${workerUrl}/run-single`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": workerToken,
+        },
+        body: JSON.stringify({
+          competitor_name: product.competitor.name,
+          competitor_id: product.competitor_id,
+          product_url: product.product_url,
+          country: product.country || null,
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const { data: updatedSpecs } = await supabase
+          .from("specs")
+          .select("*")
+          .eq("product_id", product.id);
+        if (updatedSpecs) {
+          setSpecs(updatedSpecs.filter((s: Spec) => s.field_key !== DISPLAY_BRAND_KEY));
+        }
+        const { data: updatedProduct } = await supabase
+          .from("products")
+          .select("image_url, price, currency, model_number, category")
+          .eq("id", product.id)
+          .single();
+        if (updatedProduct) {
+          if (updatedProduct.image_url) setImageUrl(updatedProduct.image_url);
+          if (updatedProduct.currency) setCurrency(updatedProduct.currency);
+        }
+      }
+    } catch (e) {
+      console.error("Crawl specs failed:", e);
+    } finally {
+      setCrawlingSpecs(false);
+    }
+  };
 
   const handleAiResearch = async () => {
     setAiResearching(true);
@@ -852,9 +900,30 @@ export function ProductDetail({ product, specs: initialSpecs }: Props) {
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-3">
-          공식 스펙
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">
+            공식 스펙
+          </h2>
+          {product.product_url && (
+            <button
+              onClick={handleCrawlSpecs}
+              disabled={crawlingSpecs}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-all hover:opacity-80 disabled:opacity-40"
+              style={{ background: "var(--accent)" }}
+            >
+              {crawlingSpecs ? (
+                <>
+                  <span className="inline-block animate-spin">⏳</span>
+                  크롤링 중... (최대 2분)
+                </>
+              ) : (
+                <>
+                  🔄 URL에서 스펙 수집
+                </>
+              )}
+            </button>
+          )}
+        </div>
         <div className="rounded-lg border bg-white overflow-hidden">
           <table className="w-full">
             <tbody>
